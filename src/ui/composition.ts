@@ -105,7 +105,7 @@ export const auth = {
   },
   async signIn(provider: "google" | "github"): Promise<void> {
     const { createAuthClient } = await import("better-auth/client");
-    const client = createAuthClient({ baseURL: "/api/auth" });
+    const client = createAuthClient({ baseURL: window.location.origin });
     const result = (await client.signIn.social({ provider, callbackURL: window.location.origin })) as
       | { url?: string; redirect?: boolean; error?: { message?: string } }
       | null;
@@ -115,7 +115,7 @@ export const auth = {
   },
   async signOut(): Promise<void> {
     const { createAuthClient } = await import("better-auth/client");
-    const client = createAuthClient({ baseURL: "/api/auth" });
+    const client = createAuthClient({ baseURL: window.location.origin });
     await client.signOut();
     await bindUser(null);
   },
