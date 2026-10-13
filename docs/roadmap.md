@@ -1,6 +1,7 @@
 # Roadmap
 
-- [x] **M0** — skeleton, tooling, CI, hello-world + Worker + D1 + preview/prod pipelines, AGENTS.md + docs (this milestone).
+- [x] **M0** — skeleton, tooling, CI, hello-world + Worker + D1, AGENTS.md + docs.
+- [x] **M1** — domain model (pitch/enharmonics, chords, degrees, Lick/Song) + Dexie local storage + Verovio notation + ABC entry + C/Bb/Eb/bass views + PWA shell.
 - [ ] **M1** — domain model + local lick storage + notation (pitch/chords/degrees, enharmonics, Dexie, Verovio, C/Bb/Eb/bass views).
 - [ ] **M2** — song import (MusicXML/iReal/typed) + Tone.js band engine.
 - [ ] **M3** — harmonic matching + licks-over-song + guide tones + practice modes.

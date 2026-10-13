@@ -20,6 +20,12 @@ export default tseslint.config(
     languageOptions: { globals: nodeGlobals },
   },
   {
+    // Composition root: the single place where ui/ wires concrete adapters
+    // to use cases. Components import composition.ts, never adapters.
+    files: ["src/ui/composition.ts"],
+    rules: { "boundaries/element-types": "off" },
+  },
+  {
     plugins: { boundaries },
     settings: {
       "boundaries/elements": [

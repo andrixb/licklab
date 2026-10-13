@@ -19,6 +19,8 @@ Every query scoped by `owner_id`, index starts with `owner_id`.
 
 - `0001_init.sql` — M0 `_m0_ping` smoke table `(id, owner_id, updated_at,
   deleted_at)` + `idx_m0_ping_owner_updated`. Proves migration pipeline.
+- M1 — no D1 changes. Local Dexie store v1 (`licklab-<namespace>`, compound
+  key `[ownerId+id]`, full-Lick JSON + filter columns + tombstones).
 
 Budget (rows read/written per sync/day, heavy-use scenario) + restore-from-
 Time-Travel runbook land in M4. Sync-paused-on-limit state required in client.

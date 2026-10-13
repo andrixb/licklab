@@ -2,11 +2,29 @@
 // Full list per spec; implementations live in adapters/ or worker/.
 // UI talks to use cases; use cases talk to these ports; never to adapters directly.
 
+import type { Lick } from "../domain/lick.js";
+import type { Song } from "../domain/song.js";
+
+export interface LickFilter {
+  readonly function?: string;
+  readonly artist?: string;
+  readonly tag?: string;
+  readonly difficulty?: number;
+  readonly search?: string; // matches title, artist, tags, notes
+  readonly includeDeleted?: boolean;
+}
+
 export interface LickRepository {
-  list(): Promise<unknown[]>;
+  save(lick: Lick): Promise<void>;
+  get(id: string, ownerId: string): Promise<Lick | null>;
+  list(ownerId: string, filter?: LickFilter): Promise<Lick[]>;
+  /** Soft delete (sets deletedAt); hard delete only via account deletion (M4). */
+  softDelete(id: string, ownerId: string, deletedAt: string): Promise<void>;
 }
 export interface SongRepository {
-  list(): Promise<unknown[]>;
+  save(song: Song): Promise<void>;
+  get(id: string, ownerId: string): Promise<Song | null>;
+  list(ownerId: string): Promise<Song[]>;
 }
 export interface SyncRemote {
   pullChanges(since: string): Promise<unknown[]>;
@@ -24,8 +42,13 @@ export interface AudioEngine {
 export interface BackingProvider {
   readonly name: "backing-provider";
 }
+export interface NotationOptions {
+  readonly title?: string;
+  readonly scale?: number; // percent, default 40 (compact lead-sheet size)
+}
 export interface NotationRenderer {
-  readonly name: "notation-renderer";
+  /** Render ABC input to SVG. Heavy WASM loads lazily on first call. */
+  renderAbcToSvg(abc: string, opts?: NotationOptions): Promise<string>;
 }
 export interface MidiInput {
   readonly name: "midi-input";

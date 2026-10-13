@@ -1,22 +1,44 @@
 import React from "react";
-import { checkHealth } from "../application/health.js";
+import { lickLab } from "./composition.js";
+import { LibraryView } from "./LibraryView.js";
+import { LickDetailView } from "./LickDetailView.js";
+import { NewLickView } from "./NewLickView.js";
+
+type Route = { view: "library" } | { view: "detail"; id: string } | { view: "new" };
 
 export function App(): React.JSX.Element {
-  const health = checkHealth({ clock: { nowIso: () => new Date().toISOString() } });
+  const [route, setRoute] = React.useState<Route>({ view: "library" });
+  const [ready, setReady] = React.useState(false);
+
+  React.useEffect(() => {
+    lickLab
+      .ensureSeeded()
+      .catch((e: unknown) => console.error("seed failed", e))
+      .finally(() => setReady(true));
+  }, []);
+
   return (
-    <main style={{ fontFamily: "system-ui", padding: 24, maxWidth: 720 }}>
+    <main style={{ fontFamily: "system-ui", padding: 24, maxWidth: 900 }}>
       <h1>LickLab</h1>
-      <p>Store jazz licks and try them over real standards. (M0 skeleton — local-first, offline-capable PWA coming in M1+.)</p>
-      <p>
-        API health: <code>{JSON.stringify(health)}</code>
-      </p>
-      <p>
-        Your charts stay yours: only chord changes + metadata sync to the cloud; scores and audio never leave this device. See{" "}
-        <a href="https://realbook.site/" rel="noreferrer">
-          realbook.site
-        </a>{" "}
-        for standards playback (link-out only — no scraping).
-      </p>
+      {!ready ? (
+        <p>Loading your lick library…</p>
+      ) : route.view === "detail" ? (
+        <LickDetailView id={route.id} onBack={() => setRoute({ view: "library" })} />
+      ) : route.view === "new" ? (
+        <NewLickView onSaved={(id) => setRoute({ view: "detail", id })} onCancel={() => setRoute({ view: "library" })} />
+      ) : (
+        <LibraryView onOpen={(id) => setRoute({ view: "detail", id })} onNew={() => setRoute({ view: "new" })} />
+      )}
+      <footer style={{ marginTop: 32 }}>
+        <p>
+          Local-first: your licks live in this browser. Scores you import and audio you load never leave this device — only chord
+          changes sync to the cloud (M4). Standards playback lives at{" "}
+          <a href="https://realbook.site/" rel="noreferrer">
+            realbook.site
+          </a>{" "}
+          (link-out only).
+        </p>
+      </footer>
     </main>
   );
 }
