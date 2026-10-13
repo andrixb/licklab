@@ -3,7 +3,8 @@
 // https://www.gnu.org/licenses/gpl-3.0.html (no warranty)
 
 import { describe, expect, it } from "vitest";
-import { buildLickView, buildLickViews, LICK_VIEW_KINDS } from "./lickViews.js";
+import { buildGuideTones, buildLickView, buildLickViews, LICK_VIEW_KINDS } from "./lickViews.js";
+import { validLick } from "../domain/lick.test.js";
 import { parseChordSymbol } from "../domain/chords.js";
 import type { Lick } from "../domain/lick.js";
 import { parseLick } from "../domain/lick.js";
@@ -60,5 +61,31 @@ describe("buildLickViews", () => {
     const v = buildLickView(lick, "bass");
     expect(v.abc).toContain("clef=bass");
     expect(firstPitchOf(v.abc)).toBeLessThan(firstPitchOf(buildLickView(lick, "concert").abc));
+  });
+});
+
+describe("buildGuideTones", () => {
+  it("spells 3rd+7th per chord of the context", () => {
+    const lick = validLick({
+      harmonicContext: {
+        chords: [
+          { symbol: "Dm7", beats: 4 },
+          { symbol: "G7", beats: 4 },
+        ],
+        originalKey: "C",
+        function: "ii-V-I major",
+      },
+    });
+    expect(buildGuideTones(lick)).toBe("Dm7: F · C  |  G7: B · F");
+  });
+  it("handles sus (4th) and power5 (no guide tones)", () => {
+    const lick = validLick({
+      harmonicContext: { chords: [{ symbol: "Gsus7", beats: 4 }], originalKey: "G", function: "dom7" },
+    });
+    expect(buildGuideTones(lick)).toBe("Gsus7: C · F");
+    const power = validLick({
+      harmonicContext: { chords: [{ symbol: "C5", beats: 4 }], originalKey: "C", function: "other" },
+    });
+    expect(buildGuideTones(power)).toBe("C5");
   });
 });

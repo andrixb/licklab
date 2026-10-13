@@ -76,3 +76,49 @@ export function rankSegment(segment: Segment, catalog: readonly CatalogLick[]): 
 export function rankProgression(segments: readonly Segment[], catalog: readonly CatalogLick[]): RankedMatch[][] {
   return segments.map((seg) => rankSegment(seg, catalog));
 }
+
+export interface Placement {
+  /** Where the lick's FIRST context chord lands in the progression. */
+  readonly startBeat: number;
+  /** Chord symbol to re-root the lick onto (its degrees are preserved). */
+  readonly targetRootSymbol: string;
+  readonly tier: MatchTier;
+}
+
+/**
+ * Where a matched lick goes inside a segment: the exact window if present,
+ * else the segment start (function match) or first chord of its quality.
+ * Never extends past the segment (lick length is respected).
+ */
+export function placementFor(lick: Lick, segment: Segment): Placement | null {
+  const lc = lick.harmonicContext.chords;
+  const sc = segment.chords;
+  const beatOffsets: number[] = [];
+  let acc = 0;
+  for (const c of sc) {
+    beatOffsets.push(acc);
+    acc += c.beats;
+  }
+  const lickKey = contextKeyOf(lc);
+  for (let i = 0; i + lc.length <= sc.length; i++) {
+    const windowChords = sc.slice(i, i + lc.length);
+    const anchor = windowChords[0];
+    if (!anchor) continue;
+    if (contextKeyOf(windowChords) === lickKey) {
+      return { startBeat: segment.startBeat + (beatOffsets[i] ?? 0), targetRootSymbol: anchor.symbol, tier: 1 };
+    }
+  }
+  const first = sc[0];
+  if (first && lick.functionKey === segment.functionKey && lc.length <= sc.length) {
+    return { startBeat: segment.startBeat, targetRootSymbol: first.symbol, tier: 2 };
+  }
+  if (lick.chordQuality != null) {
+    for (let i = 0; i < sc.length; i++) {
+      const c = sc[i];
+      if (c && segment.signature[i]?.quality === lick.chordQuality) {
+        return { startBeat: segment.startBeat + (beatOffsets[i] ?? 0), targetRootSymbol: c.symbol, tier: 3 };
+      }
+    }
+  }
+  return null;
+}

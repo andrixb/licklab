@@ -23,15 +23,34 @@ export default defineConfig({
         ],
       },
       workbox: {
-        // App shell precached. The ~7MB Verovio WASM chunk is on-demand +
-        // runtime-cached (keeps install light; still fully offline after first view).
+        // App shell precached. The ~7MB Verovio WASM chunk and the Tone
+        // engine (~330KB) load on first use and are runtime-cached —
+        // install stays light, offline works after first audition.
         globPatterns: ["**/*.{js,css,html,png,webmanifest}"],
-        globIgnores: ["**/verovio*.js", "**/*.map"],
+        globIgnores: ["**/verovio*.js", "**/tone-*.js", "**/*.map"],
         runtimeCaching: [
           {
             urlPattern: /verovio.*\.js$/,
             handler: "CacheFirst",
             options: { cacheName: "verovio-wasm", expiration: { maxEntries: 4 } },
+          },
+          {
+            // Starter pack: NetworkFirst so revisions land, but usable
+            // offline once opened ("works at the instrument" requirement).
+            urlPattern: /\/starter-pack\.json$/,
+            handler: "NetworkFirst",
+            options: { cacheName: "starter-pack", networkTimeoutSeconds: 5, expiration: { maxEntries: 2, maxAgeSeconds: 86_400 } },
+          },
+          {
+            // Tone chunk (~330KB) — lazy but cached hard after first play.
+            urlPattern: /\/assets\/tone-.*\.js$/,
+            handler: "CacheFirst",
+            options: { cacheName: "tone", expiration: { maxEntries: 4 } },
+          },
+          {
+            urlPattern: /\/assets\/.*\.js$/,
+            handler: "CacheFirst",
+            options: { cacheName: "app-chunks", expiration: { maxEntries: 40, maxAgeSeconds: 2_592_000 } },
           },
         ],
       },
@@ -43,6 +62,11 @@ export default defineConfig({
     // needed for triage; Worker error traces come from Workers Observability).
     sourcemap: false,
     chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      // Stable chunk name so precache exclusion + CacheFirst pattern match
+      // across builds (Tone is dynamically imported on first play, ADR-017).
+      output: { manualChunks: { tone: ["tone"] } },
+    },
   },
   server: {
     proxy: {

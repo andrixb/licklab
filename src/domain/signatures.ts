@@ -93,7 +93,7 @@ export function signatureOf(chords: readonly ChordInput[]): SignatureChord[] {
 /**
  * contextKey: qualities + root intervals from the first chord + durations.
  * "Dm7 G7 Cmaj7" (and its 12-key transpositions) →
- * "m@0:4.7@7:4.M@0:4".
+ * "m@0:4.7@5:4.M@10:4" (intervals measured from the first root).
  */
 export function contextKeyOf(chords: readonly ChordInput[]): string {
   return signatureOf(chords)

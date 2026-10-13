@@ -10,6 +10,13 @@ adapters to use-case closures; every other file imports composition, application
 or domain only. Mobile-friendly, large touch targets (at the instrument).
 Mock audio/MIDI in e2e tests.
 
+Routing (M3): URL is the source of truth — see `router.ts` (path + query
+only; `/play?c=…` is the stateless share link). Components call
+`navigate()`; App subscribes to popstate. Adding a screen = new Route
+variant + lazy view + one router test (round-trip property). Keep heavy
+views/screens lazy-loaded (`React.lazy`) and audio/notation engines
+dynamic-imported on first use — initial JS budget is in docs/deployment.md.
+
 Styling (ADR-010): Tailwind v4 utilities in TSX only. Design tokens =
 `theme.css` `@theme`; shared class strings = `primitives.ts` (add there, don't
 re-litigate class soup per file). **Never stack conflicting color utilities**

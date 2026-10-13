@@ -7,14 +7,18 @@ import { auth, bindUser, lickLab } from "./composition.js";
 import { LibraryView } from "./LibraryView.js";
 import { LickDetailView } from "./LickDetailView.js";
 import { NewLickView } from "./NewLickView.js";
-import { btnLink } from "./primitives.js";
+import { parseRoute, navigate, type Route } from "./router.js";
+import { btnGhost, btnLink } from "./primitives.js";
 
 const AccountMenu = React.lazy(() => import("./AccountMenu.js"));
+const WorkspaceView = React.lazy(() => import("./WorkspaceView.js").then((m) => ({ default: m.WorkspaceView })));
 
-type Route = { view: "library" } | { view: "detail"; id: string } | { view: "new" };
+function currentRoute(): Route {
+  return parseRoute(window.location.pathname, window.location.search);
+}
 
 export function App(): React.JSX.Element {
-  const [route, setRoute] = React.useState<Route>({ view: "library" });
+  const [route, setRoute] = React.useState<Route>(currentRoute);
   const [ready, setReady] = React.useState(false);
   const [libraryKey, setLibraryKey] = React.useState(0);
 
@@ -25,21 +29,32 @@ export function App(): React.JSX.Element {
       await lickLab.ensureSeeded().catch((e: unknown) => console.error("seed failed", e));
       setReady(true);
     })();
+    const onPop = (): void => setRoute(currentRoute());
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
   }, []);
 
-  const goLibrary = () => {
-    setRoute({ view: "library" });
-    setLibraryKey((k) => k + 1);
+  const go = (r: Route): void => {
+    navigate(r);
+    if (r.view === "library") setLibraryKey((k) => k + 1);
   };
 
   return (
     <div className="flex-1 w-full max-w-[1100px] mx-auto px-5 pb-12">
       <header className="flex flex-wrap items-center justify-between gap-4 pt-[18px] pb-3.5 border-b border-line mb-[22px]">
         <h1 className="m-0 text-[1.35rem] font-serif">
-          <button type="button" className={`${btnLink} text-gold`} onClick={goLibrary}>
+          <button type="button" className={`${btnLink} text-gold`} onClick={() => go({ view: "library" })}>
             LickLab <small className="font-sans text-[0.55em] text-dim ml-2 tracking-[0.12em]">jazz licks over standards</small>
           </button>
         </h1>
+        <nav className="flex gap-1" aria-label="main">
+          <button type="button" className={`${btnGhost} ${route.view === "library" ? "text-gold" : ""}`} onClick={() => go({ view: "library" })}>
+            Library
+          </button>
+          <button type="button" className={`${btnGhost} ${route.view === "play" ? "text-gold" : ""}`} onClick={() => go({ view: "play" })}>
+            Play over…
+          </button>
+        </nav>
         <React.Suspense fallback={null}>
           <AccountMenu />
         </React.Suspense>
@@ -47,11 +62,15 @@ export function App(): React.JSX.Element {
       {!ready ? (
         <p className="py-5 italic text-dim">Loading your lick library…</p>
       ) : route.view === "detail" ? (
-        <LickDetailView id={route.id} onBack={goLibrary} />
+        <LickDetailView id={route.id} onBack={() => go({ view: "library" })} />
       ) : route.view === "new" ? (
-        <NewLickView onSaved={(id) => setRoute({ view: "detail", id })} onCancel={goLibrary} />
+        <NewLickView onSaved={(id) => go({ view: "detail", id })} onCancel={() => go({ view: "library" })} />
+      ) : route.view === "play" ? (
+        <React.Suspense fallback={<p className="py-5 italic text-dim">Loading workspace…</p>}>
+          <WorkspaceView key={`${route.preset ?? ""}|${route.chords ?? ""}`} seed={route} />
+        </React.Suspense>
       ) : (
-        <LibraryView key={libraryKey} onOpen={(id) => setRoute({ view: "detail", id })} onNew={() => setRoute({ view: "new" })} />
+        <LibraryView key={libraryKey} onOpen={(id) => go({ view: "detail", id })} onNew={() => go({ view: "new" })} />
       )}
       <footer className="mt-9 pt-3.5 border-t border-line text-dim text-sm">
         <p>

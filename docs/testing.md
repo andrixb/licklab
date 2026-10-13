@@ -12,5 +12,11 @@ convergence). Target ≥90% on domain+application; coverage reported per milesto
   row, no token/email leaks in responses/logs.
 - Migration tests (empty DB + upgrade), EXPLAIN QUERY PLAN index tests.
 - Importer golden files (self-written/user-provided only; never copyrighted charts).
-- Playwright e2e: create lick, import song, fitting licks, play, export, two-context
-  sync — audio/MIDI mocked. Red pipeline blocks the milestone.
+- Audio timing: scheduling tested via pure `toTimedEvents` (beat→seconds,
+  count-in) + FakeAudioEngine contract test — never by listening (ADR-017).
+  Tone adapter itself is thin glue (lazy import + Transport.schedule),
+  exercised state-only in e2e.
+- Playwright e2e: create lick + notation + transpose + delete; sign-in menu;
+  anonymous shared-progression → audition → place → solo chorus; preset
+  chips + share URL. Audio runs in real (headless) AudioContext; assertions
+  are on UI state (Play↔Stop), not sound.

@@ -66,6 +66,12 @@ Dependencies point **inward only**, enforced by `eslint-plugin-boundaries`
   owner-scoped query, add API + cross-user tests.
 - New migration: `migrations/NNNN_<name>.sql`, test empty-DB + upgrade path,
   log it in `docs/data-and-sync.md`.
+- Starter-pack lick (public, self-written only): add to
+  `scripts/make-starter-pack.mjs`, regenerate with
+  `npx vite-node scripts/make-starter-pack.mjs`, commit
+  `public/starter-pack.json` (contract test validates parse + fit-vs-presets).
+- New band style/voice: patterns are pure in `domain/band.ts` (test first);
+  instruments live only in `adapters/tone/engine.ts` (ADR-017).
 
 ## Cloudflare free-tier constraints
 

@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from "vitest";
 import * as fc from "fast-check";
-import { contextFits, rankProgression, rankSegment, tierFor, type CatalogLick } from "./matching.js";
+import { contextFits, placementFor, rankProgression, rankSegment, tierFor, type CatalogLick } from "./matching.js";
 import { analyzeChords, flattenProgression, type Segment } from "./progression.js";
 import { transposeChordSymbol } from "./transpose.js";
 import type { Lick, LickChord } from "./lick.js";
@@ -112,5 +112,34 @@ describe("matching.transposition invariance (property)", () => {
         expect(tierFor(lickMoved, moved)).toBe(tierFor(lick, baseSeg));
       }),
     );
+  });
+});
+
+describe("matching.placementFor", () => {
+  it("exact window: places on the matching chord at its beat", () => {
+    const segs = segmentsOf("Cmaj7", "Am7", "Dm7", "G7");
+    const lick = validLick({ harmonicContext: { chords: chords("Dm7", "G7"), originalKey: "C", function: "ii-V-I major" } });
+    const placed = segs.flatMap((s) => { const p = placementFor(lick, s); return p ? [{ s, p }] : []; });
+    expect(placed.length).toBeGreaterThan(0);
+    const first = placed[0]!;
+    expect(first.p.tier).toBe(1);
+    expect(first.p.targetRootSymbol).toBe("Dm7");
+    expect(first.p.startBeat).toBe(8);
+  });
+  it("quality tier places on first chord of matching quality", () => {
+    const [seg] = segmentsOf("Dm7", "G7", "Cmaj7");
+    const lick = validLick({
+      pattern: [{ steps: 0, semitones: 0, octaveOffset: 0, startBeat: 0, durationBeats: 1 }],
+      harmonicContext: { chords: [{ symbol: "Bb7", beats: 2 }], originalKey: "Bb", function: "dom7" },
+    });
+    const p = placementFor(lick, seg!);
+    expect(p?.tier).toBe(3);
+    expect(p?.targetRootSymbol).toBe("G7");
+    expect(p?.startBeat).toBe(4);
+  });
+  it("null when nothing fits", () => {
+    const [seg] = segmentsOf("Cmaj7");
+    const lick = validLick({ harmonicContext: { chords: chords("Dm7", "G7"), originalKey: "C", function: "ii-V-I major" } });
+    expect(placementFor(lick, seg!)).toBeNull();
   });
 });

@@ -11,9 +11,14 @@ import { DexieLickRepository, LickLabDb } from "../adapters/dexie/licks.js";
 import { VerovioRenderer } from "../adapters/notation/verovio.js";
 import { deleteLick, listLicks, saveLick, type SaveLickInput } from "../application/licks.js";
 import { createLickFromAbc, type AbcLickInput } from "../application/lickInput.js";
+import { findLicksForProgression } from "../application/matching.js";
+import { auditionLick, playChorus, playSoloChorus, playTwelveKeys } from "../application/playback.js";
 import { SEED_LICKS } from "../application/seeds.js";
-import type { LickFilter } from "../application/ports.js";
+import type { AudioEngine, BandPlayback, LickFilter } from "../application/ports.js";
 import type { Lick } from "../domain/lick.js";
+import type { BandPart, BandStyle } from "../domain/band.js";
+import type { CatalogLick } from "../domain/matching.js";
+import { analyzeProgression, parseProgressionInput, PRESETS, type Progression } from "../domain/progression.js";
 
 /** Signed-out local-only mode namespace (attaches to the account on first sign-in). */
 export const LOCAL_OWNER = "local";
@@ -158,3 +163,103 @@ export const lickLab = {
     }
   },
 };
+
+// ---- Workspace (progression + band) ----
+
+const starterPack: { cache: Promise<CatalogLick[]> | null } = { cache: null };
+
+async function catalogLicks(): Promise<CatalogLick[]> {
+  if (!starterPack.cache) {
+    starterPack.cache = fetch("/starter-pack.json")
+      .then((r) => r.json() as Promise<{ licks: unknown[] }>)
+      .then((file) => import("../adapters/catalog/starter-pack.js").then((m) => m.createStarterPackCatalog(async () => file).fetchPublicLicks()));
+  }
+  const [starter, own] = await Promise.all([
+    starterPack.cache.catch(() => [] as CatalogLick[]),
+    lickLab.listLicks(),
+  ]);
+  return [...own.map((lick) => ({ lick, likes: 0 })), ...starter];
+}
+
+function draftProgression(input: string): Progression {
+  const now = clock.nowIso();
+  return {
+    id: "draft",
+    title: "",
+    key: "",
+    bars: parseProgressionInput(input),
+    ownerId: currentUser?.id ?? LOCAL_OWNER,
+    createdAt: now,
+    updatedAt: now,
+    deletedAt: null,
+    schemaVersion: 1,
+  };
+}
+
+// Tone (~200KB) loads lazily on FIRST play — keeps the initial payload
+// inside the budget check (docs/deployment.md).
+let enginePromise: Promise<AudioEngine> | null = null;
+function getEngine(): Promise<AudioEngine> {
+  if (!enginePromise) enginePromise = import("../adapters/tone/engine.js").then((m) => m.createToneEngine());
+  return enginePromise;
+}
+
+let currentPlayback: BandPlayback | null = null;
+const playListeners = new Set<() => void>();
+
+async function runPlayback(make: (engine: AudioEngine) => BandPlayback | null): Promise<boolean> {
+  currentPlayback?.stop();
+  const engine = await getEngine();
+  const playback = make(engine);
+  if (!playback) return false;
+  currentPlayback = playback;
+  for (const l of playListeners) l();
+  await playback.finished;
+  if (currentPlayback === playback) currentPlayback = null;
+  for (const l of playListeners) l();
+  return true;
+}
+
+export const workspace = {
+  presets: PRESETS,
+  chordsOf: (presetId: string): string => {
+    const p = PRESETS.find((x) => x.id === presetId);
+    if (!p) throw new Error("unknown preset");
+    return p.bars.map((b) => b.chords.map((c) => c.symbol).join(" ")).join(" | ");
+  },
+  matches: async (input: string) => {
+    const progression = draftProgression(input);
+    return { progression, result: findLicksForProgression(progression, await catalogLicks()) };
+  },
+  playChorus: (input: string, style: BandStyle, parts: BandPart) =>
+    runPlayback((e) => playChorus(e, draftProgression(input).bars, { style, tempoBpm: parts.tempoBpm, parts })),
+  auditionLick: (input: string, lick: Lick, style: BandStyle, parts: BandPart) =>
+    runPlayback((e) => {
+      const p = draftProgression(input);
+      return auditionLick(e, p.bars, findSegmentsFor(p), lick, { style, tempoBpm: parts.tempoBpm, parts });
+    }),
+  playSoloChorus: (input: string, placements: readonly { lick: Lick; segmentIndex: number }[], style: BandStyle, parts: BandPart) =>
+    runPlayback((e) => {
+      const p = draftProgression(input);
+      return playSoloChorus(e, p.bars, findSegmentsFor(p), placements, { style, tempoBpm: parts.tempoBpm, parts });
+    }),
+  playTwelveKeys: (lick: Lick, style: BandStyle, parts: BandPart) =>
+    runPlayback((e) => playTwelveKeys(e, lick, { style, tempoBpm: parts.tempoBpm, parts })),
+  stop(): void {
+    currentPlayback?.stop();
+    currentPlayback = null;
+    for (const l of playListeners) l();
+  },
+  get isPlaying(): boolean {
+    return currentPlayback !== null;
+  },
+  onPlayChange(cb: () => void): () => void {
+    playListeners.add(cb);
+    return () => playListeners.delete(cb);
+  },
+};
+
+function findSegmentsFor(p: Progression) {
+  return analyzeProgression(p);
+}
+

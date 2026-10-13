@@ -29,7 +29,13 @@ Harmonic matching, transposition, notation run
 client-side in domain; Worker stays thin (10 ms CPU budget). Sync: push chunks
 + `GET /api/changes?since=<cursor>`, LWW per record in domain.
 
-Ports: LickRepository, SongRepository, SyncRemote, SessionVerifier,
-RateLimiter, AudioEngine/BackingProvider, NotationRenderer, MidiInput,
-SongImporter, Exporter, TimeStretchPlayer, YouTubeLoopPlayer, Clock,
-IdGenerator. See `src/application/ports.ts` and `docs/domain.md`.
+Ports: LickRepository, SongRepository, SyncRemote, PublicLickCatalog
+(starter-pack static today; D1/HTTP catalog in M4), SessionVerifier,
+RateLimiter, AudioEngine (+BandPlayback; Tone adapter lazy),
+BackingProvider, NotationRenderer, MidiInput, SongImporter, Exporter,
+TimeStretchPlayer, YouTubeLoopPlayer, Clock, IdGenerator.
+See `src/application/ports.ts` and `docs/domain.md`.
+Band: domain/band.ts generates deterministic beat events; adapters/tone
+schedules them (ADR-017). Matching/placement: docs/matching.md.
+Routing: ui/router.ts path-based (SPA fallback); shared progression links
+encode chords in the query string only (stateless).

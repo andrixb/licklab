@@ -1,27 +1,29 @@
 # STATUS.md — current state
 
-**Milestone:** M1.5 (audit reconciliation) + **M2 (matching domain core)**
-done on top of the community-database replan. Accounts/auth remain done from
-the earlier milestone; songs/band (M3), catalog API + sync (M4) ahead.
-**Live:** production `https://licklab.licklab.workers.dev` (unchanged this
-milestone — M2 is client-side domain + docs only).
-**What works (new in M2):**
-- Signatures: `contextKey` (quality@rootInterval:beats), `functionKey`
-  (rule set incl. ii-V-I/ii-V-i/turnaround/V-I±tritone/cycle), `chordQuality`,
-  `patternHash` (ADR-012) — derived in `parseLick`, never trusted from input.
-- Progression entity + presets + segment analyzer (longest-first greedy
-  coverage, blues.12bar anchors), matching tiers 1/2/3 + likes/recency
-  ranking, plausibility check (warn-only) — all pure domain.
-- `findLicksForProgression` application use case; Lick schema v2 (ADR-011,
-  v1 rows normalize on read); `ratelimits` Worker binding (ADR-014); no
-  prod sourcemaps.
-**Tests:** 123 unit (was 69; +signatures/analyzer/matching/plausibility incl.
-12-key transposition invariance properties) + 8 workerd (added native-binding
-path); coverage domain 96–99%, application 100% (thresholds hold).
-**Known issues:** OAuth apps/secrets still not created (owner action,
-docs/deployment.md table); preview versions share prod D1 (isolate in M4);
-matching docs: `docs/matching.md`.
-**Next:** M3 — progression workspace (URL routing + shared links, presets,
-bar grid), Tone.js band engine behind ports, starter pack static asset.
+**Milestone:** M1.5 + M2 + **M3 (workspace, band engine, audition, starter
+pack)** done. Catalog/sync (M4) and Phase-2 tools (M5) ahead; M3.5 (swap
+synths for CC0 samples) is the next polish step.
+**Live:** production `https://licklab.licklab.workers.dev` (M2 shipped;
+M3 pending preview verification).
+**What works:**
+- M2 (matching core): signatures, analyzer, tiers + ranking, plausibility,
+  Lick v2. **New in M3:**
+- Progression workspace at `/play`: preset chips, typed chords, stateless
+  share links (`/play?c=...`), per-segment tier-ranked matches, audition a
+  lick over the band, place licks into a solo chorus, all-12-keys cycle.
+- Band engine (Tone, lazy-loaded on first play; synths for now — ADR-017):
+  walking bass / 3+7 comping / per-style drum grids, swing/ballad/bossa/
+  straight, tempo, bass/piano/drums mutes. Pure timing core, tested without
+  audio (163 unit + 8 workerd + 4 Playwright flows).
+- Starter pack: 8 self-written licks as static `public/starter-pack.json`
+  (anonymous, offline, no API); guide-tone line on lick detail.
+- Path-based URL routing (SPA fallback); `?e=e` ignored (verified platform
+  noise).
+**Known issues:** OAuth apps/secrets still not created (owner action);
+preview versions share prod D1 (fix in M4); initial JS 375/400 KB — M4 UI
+must keep lazy-loading; sample-based audio not yet wired (synths now).
+**Next:** preview-verify M3, then M4 — catalog D1 tables + cached read API,
+submission/gate/quotas, favorites, sync, moderation, preview-D1 isolation.
+
 
 Cold-start: read `AGENTS.md`, then this file, then `docs/`.

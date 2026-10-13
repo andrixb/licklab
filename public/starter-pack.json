@@ -1,0 +1,873 @@
+{
+  "schemaVersion": 2,
+  "kind": "licklab-starter-pack",
+  "licks": [
+    {
+      "id": "starter-01",
+      "title": "Chord-Tone Descent",
+      "pattern": [
+        {
+          "steps": 4,
+          "semitones": 7,
+          "octaveOffset": 0,
+          "startBeat": 0,
+          "durationBeats": 1
+        },
+        {
+          "steps": 2,
+          "semitones": 3,
+          "octaveOffset": 0,
+          "startBeat": 1,
+          "durationBeats": 1
+        },
+        {
+          "steps": 0,
+          "semitones": 0,
+          "octaveOffset": 0,
+          "startBeat": 2,
+          "durationBeats": 1
+        },
+        {
+          "steps": 0,
+          "semitones": 0,
+          "octaveOffset": -1,
+          "startBeat": 3,
+          "durationBeats": 1
+        },
+        {
+          "steps": 5,
+          "semitones": 9,
+          "octaveOffset": 0,
+          "startBeat": 4,
+          "durationBeats": 1
+        },
+        {
+          "steps": 3,
+          "semitones": 5,
+          "octaveOffset": 0,
+          "startBeat": 5,
+          "durationBeats": 1
+        },
+        {
+          "steps": 0,
+          "semitones": 0,
+          "octaveOffset": 0,
+          "startBeat": 6,
+          "durationBeats": 1
+        },
+        {
+          "steps": 2,
+          "semitones": 3,
+          "octaveOffset": 0,
+          "startBeat": 7,
+          "durationBeats": 1
+        },
+        {
+          "steps": 1,
+          "semitones": 2,
+          "octaveOffset": 0,
+          "startBeat": 8,
+          "durationBeats": 1
+        },
+        {
+          "steps": 3,
+          "semitones": 5,
+          "octaveOffset": 0,
+          "startBeat": 9,
+          "durationBeats": 1
+        },
+        {
+          "steps": 5,
+          "semitones": 9,
+          "octaveOffset": 0,
+          "startBeat": 10,
+          "durationBeats": 1
+        },
+        {
+          "steps": 6,
+          "semitones": 10,
+          "octaveOffset": 0,
+          "startBeat": 11,
+          "durationBeats": 1
+        }
+      ],
+      "harmonicContext": {
+        "chords": [
+          {
+            "symbol": "Dm7",
+            "beats": 4
+          },
+          {
+            "symbol": "G7",
+            "beats": 4
+          },
+          {
+            "symbol": "Cmaj7",
+            "beats": 4
+          }
+        ],
+        "originalKey": "C",
+        "function": "ii-V-I major"
+      },
+      "contextKey": "m@0:4.7@5:4.M@10:4",
+      "functionKey": "ii-V-I.maj",
+      "chordQuality": null,
+      "patternHash": "3ce6266c760a6595",
+      "visibility": "public",
+      "license": "CC BY 4.0",
+      "moderationState": "approved",
+      "source": {
+        "artist": "LickLab (self-written example)",
+        "instrument": "bass",
+        "track": "",
+        "album": "",
+        "year": null,
+        "recordingUrl": "",
+        "timestampSeconds": null,
+        "location": ""
+      },
+      "tags": [
+        "arpeggio",
+        "chord tones",
+        "ii-V-I"
+      ],
+      "difficulty": 1,
+      "notes": "Descending arpeggios through the ii-V-I. Start here: every note is a chord tone.",
+      "ownerId": "starter-pack",
+      "createdAt": "2026-10-13T00:00:00.000Z",
+      "updatedAt": "2026-10-13T00:00:00.000Z",
+      "deletedAt": null,
+      "schemaVersion": 2
+    },
+    {
+      "id": "starter-02",
+      "title": "ii-V Enclosure",
+      "pattern": [
+        {
+          "steps": 0,
+          "semitones": 0,
+          "octaveOffset": 0,
+          "startBeat": 0,
+          "durationBeats": 0.5
+        },
+        {
+          "steps": 2,
+          "semitones": 3,
+          "octaveOffset": 0,
+          "startBeat": 0.5,
+          "durationBeats": 0.5
+        },
+        {
+          "steps": 4,
+          "semitones": 7,
+          "octaveOffset": 0,
+          "startBeat": 1,
+          "durationBeats": 0.5
+        },
+        {
+          "steps": 6,
+          "semitones": 10,
+          "octaveOffset": 0,
+          "startBeat": 1.5,
+          "durationBeats": 0.5
+        },
+        {
+          "steps": 0,
+          "semitones": 0,
+          "octaveOffset": 0,
+          "startBeat": 2,
+          "durationBeats": 0.5
+        },
+        {
+          "steps": 6,
+          "semitones": 11,
+          "octaveOffset": 0,
+          "startBeat": 3,
+          "durationBeats": 0.5
+        },
+        {
+          "steps": 1,
+          "semitones": 2,
+          "octaveOffset": 0,
+          "startBeat": 3.5,
+          "durationBeats": 0.5
+        },
+        {
+          "steps": 0,
+          "semitones": 0,
+          "octaveOffset": 0,
+          "startBeat": 4,
+          "durationBeats": 1
+        },
+        {
+          "steps": 2,
+          "semitones": 3,
+          "octaveOffset": 0,
+          "startBeat": 5,
+          "durationBeats": 1
+        },
+        {
+          "steps": 4,
+          "semitones": 7,
+          "octaveOffset": 0,
+          "startBeat": 6,
+          "durationBeats": 1
+        },
+        {
+          "steps": 1,
+          "semitones": 2,
+          "octaveOffset": 0,
+          "startBeat": 7,
+          "durationBeats": 2
+        }
+      ],
+      "harmonicContext": {
+        "chords": [
+          {
+            "symbol": "Dm7",
+            "beats": 4
+          },
+          {
+            "symbol": "G7",
+            "beats": 4
+          },
+          {
+            "symbol": "Cmaj7",
+            "beats": 4
+          }
+        ],
+        "originalKey": "C",
+        "function": "ii-V-I major"
+      },
+      "contextKey": "m@0:4.7@5:4.M@10:4",
+      "functionKey": "ii-V-I.maj",
+      "chordQuality": null,
+      "patternHash": "4729c39ba68d0d79",
+      "visibility": "public",
+      "license": "CC BY 4.0",
+      "moderationState": "approved",
+      "source": {
+        "artist": "LickLab (self-written example)",
+        "instrument": "bass",
+        "track": "",
+        "album": "",
+        "year": null,
+        "recordingUrl": "",
+        "timestampSeconds": null,
+        "location": ""
+      },
+      "tags": [
+        "enclosure",
+        "bebop",
+        "ii-V-I"
+      ],
+      "difficulty": 3,
+      "notes": "Eighth run up the Dm7 arpeggio, C#–E enclosure around D over the G7, lands on the E (3rd of C).",
+      "ownerId": "starter-pack",
+      "createdAt": "2026-10-13T00:00:00.000Z",
+      "updatedAt": "2026-10-13T00:00:00.000Z",
+      "deletedAt": null,
+      "schemaVersion": 2
+    },
+    {
+      "id": "starter-03",
+      "title": "Minor ii-V Diminished Excursion",
+      "pattern": [
+        {
+          "steps": 0,
+          "semitones": 0,
+          "octaveOffset": 0,
+          "startBeat": 0,
+          "durationBeats": 0.5
+        },
+        {
+          "steps": 2,
+          "semitones": 3,
+          "octaveOffset": 0,
+          "startBeat": 0.5,
+          "durationBeats": 0.5
+        },
+        {
+          "steps": 4,
+          "semitones": 6,
+          "octaveOffset": 0,
+          "startBeat": 1,
+          "durationBeats": 0.5
+        },
+        {
+          "steps": 6,
+          "semitones": 10,
+          "octaveOffset": 0,
+          "startBeat": 1.5,
+          "durationBeats": 0.5
+        },
+        {
+          "steps": 0,
+          "semitones": 0,
+          "octaveOffset": 0,
+          "startBeat": 2,
+          "durationBeats": 0.5
+        },
+        {
+          "steps": 5,
+          "semitones": 9,
+          "octaveOffset": 0,
+          "startBeat": 4,
+          "durationBeats": 0.5
+        },
+        {
+          "steps": 6,
+          "semitones": 11,
+          "octaveOffset": 0,
+          "startBeat": 4.5,
+          "durationBeats": 0.5
+        },
+        {
+          "steps": 5,
+          "semitones": 9,
+          "octaveOffset": 0,
+          "startBeat": 5,
+          "durationBeats": 0.5
+        },
+        {
+          "steps": 3,
+          "semitones": 5,
+          "octaveOffset": 0,
+          "startBeat": 8,
+          "durationBeats": 1
+        },
+        {
+          "steps": 1,
+          "semitones": 1,
+          "octaveOffset": 0,
+          "startBeat": 9,
+          "durationBeats": 1
+        },
+        {
+          "steps": 3,
+          "semitones": 5,
+          "octaveOffset": 0,
+          "startBeat": 10,
+          "durationBeats": 2
+        }
+      ],
+      "harmonicContext": {
+        "chords": [
+          {
+            "symbol": "Dm7b5",
+            "beats": 4
+          },
+          {
+            "symbol": "G7",
+            "beats": 4
+          },
+          {
+            "symbol": "Cm7",
+            "beats": 4
+          }
+        ],
+        "originalKey": "C",
+        "function": "ii-V-i minor"
+      },
+      "contextKey": "h@0:4.7@5:4.m@10:4",
+      "functionKey": "ii-V-i.min",
+      "chordQuality": null,
+      "patternHash": "80de4505a1929edc",
+      "visibility": "public",
+      "license": "CC BY 4.0",
+      "moderationState": "approved",
+      "source": {
+        "artist": "LickLab (self-written example)",
+        "instrument": "bass",
+        "track": "",
+        "album": "",
+        "year": null,
+        "recordingUrl": "",
+        "timestampSeconds": null,
+        "location": ""
+      },
+      "tags": [
+        "minor",
+        "diminished",
+        "ii-V-i"
+      ],
+      "difficulty": 3,
+      "notes": "D fully-diminished run over the m7b5, chromatic turn B–C#–B over the alt V, Cm7 arpeggio home.",
+      "ownerId": "starter-pack",
+      "createdAt": "2026-10-13T00:00:00.000Z",
+      "updatedAt": "2026-10-13T00:00:00.000Z",
+      "deletedAt": null,
+      "schemaVersion": 2
+    },
+    {
+      "id": "starter-04",
+      "title": "Blues Bounce",
+      "pattern": [
+        {
+          "steps": 0,
+          "semitones": 0,
+          "octaveOffset": 0,
+          "startBeat": 0,
+          "durationBeats": 0.5
+        },
+        {
+          "steps": 1,
+          "semitones": 2,
+          "octaveOffset": 0,
+          "startBeat": 0.5,
+          "durationBeats": 0.5
+        },
+        {
+          "steps": 2,
+          "semitones": 4,
+          "octaveOffset": 0,
+          "startBeat": 1,
+          "durationBeats": 0.5
+        },
+        {
+          "steps": 4,
+          "semitones": 7,
+          "octaveOffset": 0,
+          "startBeat": 1.5,
+          "durationBeats": 0.5
+        },
+        {
+          "steps": 5,
+          "semitones": 9,
+          "octaveOffset": 0,
+          "startBeat": 2,
+          "durationBeats": 0.5
+        },
+        {
+          "steps": 4,
+          "semitones": 7,
+          "octaveOffset": 0,
+          "startBeat": 2.5,
+          "durationBeats": 0.5
+        },
+        {
+          "steps": 2,
+          "semitones": 4,
+          "octaveOffset": 0,
+          "startBeat": 3,
+          "durationBeats": 0.5
+        },
+        {
+          "steps": 1,
+          "semitones": 2,
+          "octaveOffset": 0,
+          "startBeat": 3.5,
+          "durationBeats": 0.5
+        }
+      ],
+      "harmonicContext": {
+        "chords": [
+          {
+            "symbol": "C7",
+            "beats": 4
+          }
+        ],
+        "originalKey": "C",
+        "function": "blues"
+      },
+      "contextKey": "7@0:4",
+      "functionKey": "dom",
+      "chordQuality": "dom7",
+      "patternHash": "f3beb5f836bccff4",
+      "visibility": "public",
+      "license": "CC BY 4.0",
+      "moderationState": "approved",
+      "source": {
+        "artist": "LickLab (self-written example)",
+        "instrument": "bass",
+        "track": "",
+        "album": "",
+        "year": null,
+        "recordingUrl": "",
+        "timestampSeconds": null,
+        "location": ""
+      },
+      "tags": [
+        "blues",
+        "pentatonic",
+        "single chord"
+      ],
+      "difficulty": 1,
+      "notes": "Pentatonic bounce over a blues C7. Works on any dominant chord.",
+      "ownerId": "starter-pack",
+      "createdAt": "2026-10-13T00:00:00.000Z",
+      "updatedAt": "2026-10-13T00:00:00.000Z",
+      "deletedAt": null,
+      "schemaVersion": 2
+    },
+    {
+      "id": "starter-05",
+      "title": "Turnaround Rider",
+      "pattern": [
+        {
+          "steps": 0,
+          "semitones": 0,
+          "octaveOffset": 0,
+          "startBeat": 0,
+          "durationBeats": 0.5
+        },
+        {
+          "steps": 2,
+          "semitones": 4,
+          "octaveOffset": 0,
+          "startBeat": 1,
+          "durationBeats": 0.5
+        },
+        {
+          "steps": 5,
+          "semitones": 9,
+          "octaveOffset": 0,
+          "startBeat": 2,
+          "durationBeats": 0.5
+        },
+        {
+          "steps": 0,
+          "semitones": 0,
+          "octaveOffset": -1,
+          "startBeat": 3,
+          "durationBeats": 1
+        },
+        {
+          "steps": 1,
+          "semitones": 2,
+          "octaveOffset": 0,
+          "startBeat": 4,
+          "durationBeats": 0.5
+        },
+        {
+          "steps": 3,
+          "semitones": 5,
+          "octaveOffset": 0,
+          "startBeat": 5,
+          "durationBeats": 0.5
+        },
+        {
+          "steps": 4,
+          "semitones": 7,
+          "octaveOffset": 0,
+          "startBeat": 6,
+          "durationBeats": 0.5
+        },
+        {
+          "steps": 6,
+          "semitones": 10,
+          "octaveOffset": 0,
+          "startBeat": 7,
+          "durationBeats": 0.5
+        }
+      ],
+      "harmonicContext": {
+        "chords": [
+          {
+            "symbol": "Cmaj7",
+            "beats": 2
+          },
+          {
+            "symbol": "Am7",
+            "beats": 2
+          },
+          {
+            "symbol": "Dm7",
+            "beats": 2
+          },
+          {
+            "symbol": "G7",
+            "beats": 2
+          }
+        ],
+        "originalKey": "C",
+        "function": "turnaround"
+      },
+      "contextKey": "M@0:2.m@9:2.m@2:2.7@7:2",
+      "functionKey": "turnaround.maj",
+      "chordQuality": null,
+      "patternHash": "e38601457215bbfe",
+      "visibility": "public",
+      "license": "CC BY 4.0",
+      "moderationState": "approved",
+      "source": {
+        "artist": "LickLab (self-written example)",
+        "instrument": "bass",
+        "track": "",
+        "album": "",
+        "year": null,
+        "recordingUrl": "",
+        "timestampSeconds": null,
+        "location": ""
+      },
+      "tags": [
+        "turnaround",
+        "rhythm changes"
+      ],
+      "difficulty": 2,
+      "notes": "One chord tone per half bar, Bb on the G7 sets up the next chorus.",
+      "ownerId": "starter-pack",
+      "createdAt": "2026-10-13T00:00:00.000Z",
+      "updatedAt": "2026-10-13T00:00:00.000Z",
+      "deletedAt": null,
+      "schemaVersion": 2
+    },
+    {
+      "id": "starter-06",
+      "title": "Pentatonic Flip",
+      "pattern": [
+        {
+          "steps": 0,
+          "semitones": 0,
+          "octaveOffset": 0,
+          "startBeat": 0,
+          "durationBeats": 0.5
+        },
+        {
+          "steps": 2,
+          "semitones": 3,
+          "octaveOffset": 0,
+          "startBeat": 0.5,
+          "durationBeats": 0.5
+        },
+        {
+          "steps": 3,
+          "semitones": 5,
+          "octaveOffset": 0,
+          "startBeat": 1,
+          "durationBeats": 0.5
+        },
+        {
+          "steps": 4,
+          "semitones": 7,
+          "octaveOffset": 0,
+          "startBeat": 1.5,
+          "durationBeats": 0.5
+        },
+        {
+          "steps": 6,
+          "semitones": 10,
+          "octaveOffset": 0,
+          "startBeat": 2,
+          "durationBeats": 0.5
+        },
+        {
+          "steps": 7,
+          "semitones": 0,
+          "octaveOffset": 0,
+          "startBeat": 2.5,
+          "durationBeats": 0.5
+        },
+        {
+          "steps": 6,
+          "semitones": 10,
+          "octaveOffset": 0,
+          "startBeat": 3,
+          "durationBeats": 0.5
+        },
+        {
+          "steps": 4,
+          "semitones": 7,
+          "octaveOffset": 0,
+          "startBeat": 3.5,
+          "durationBeats": 0.5
+        }
+      ],
+      "harmonicContext": {
+        "chords": [
+          {
+            "symbol": "Am7",
+            "beats": 4
+          }
+        ],
+        "originalKey": "A",
+        "function": "static minor"
+      },
+      "contextKey": "m@0:4",
+      "functionKey": "static.min",
+      "chordQuality": "min7",
+      "patternHash": "1ae8e6ad17c3998c",
+      "visibility": "public",
+      "license": "CC BY 4.0",
+      "moderationState": "approved",
+      "source": {
+        "artist": "LickLab (self-written example)",
+        "instrument": "bass",
+        "track": "",
+        "album": "",
+        "year": null,
+        "recordingUrl": "",
+        "timestampSeconds": null,
+        "location": ""
+      },
+      "tags": [
+        "pentatonic",
+        "minor",
+        "single chord"
+      ],
+      "difficulty": 2,
+      "notes": "A minor pentatonic up to the octave and back — fits any four beats of a minor chord.",
+      "ownerId": "starter-pack",
+      "createdAt": "2026-10-13T00:00:00.000Z",
+      "updatedAt": "2026-10-13T00:00:00.000Z",
+      "deletedAt": null,
+      "schemaVersion": 2
+    },
+    {
+      "id": "starter-07",
+      "title": "Major Land",
+      "pattern": [
+        {
+          "steps": 0,
+          "semitones": 0,
+          "octaveOffset": 0,
+          "startBeat": 0,
+          "durationBeats": 0.5
+        },
+        {
+          "steps": 2,
+          "semitones": 4,
+          "octaveOffset": 0,
+          "startBeat": 0.5,
+          "durationBeats": 0.5
+        },
+        {
+          "steps": 4,
+          "semitones": 7,
+          "octaveOffset": 0,
+          "startBeat": 1,
+          "durationBeats": 0.5
+        },
+        {
+          "steps": 6,
+          "semitones": 11,
+          "octaveOffset": 0,
+          "startBeat": 1.5,
+          "durationBeats": 0.5
+        },
+        {
+          "steps": 7,
+          "semitones": 0,
+          "octaveOffset": 0,
+          "startBeat": 2,
+          "durationBeats": 1
+        }
+      ],
+      "harmonicContext": {
+        "chords": [
+          {
+            "symbol": "Cmaj7",
+            "beats": 4
+          }
+        ],
+        "originalKey": "C",
+        "function": "static major"
+      },
+      "contextKey": "M@0:4",
+      "functionKey": "static.maj",
+      "chordQuality": "maj7",
+      "patternHash": "b73e03b9398450aa",
+      "visibility": "public",
+      "license": "CC BY 4.0",
+      "moderationState": "approved",
+      "source": {
+        "artist": "LickLab (self-written example)",
+        "instrument": "bass",
+        "track": "",
+        "album": "",
+        "year": null,
+        "recordingUrl": "",
+        "timestampSeconds": null,
+        "location": ""
+      },
+      "tags": [
+        "arpeggio",
+        "major",
+        "single chord"
+      ],
+      "difficulty": 1,
+      "notes": "Cmaj7 up to the octave. The simplest major-7 statement.",
+      "ownerId": "starter-pack",
+      "createdAt": "2026-10-13T00:00:00.000Z",
+      "updatedAt": "2026-10-13T00:00:00.000Z",
+      "deletedAt": null,
+      "schemaVersion": 2
+    },
+    {
+      "id": "starter-08",
+      "title": "Guide-Tone Glide",
+      "pattern": [
+        {
+          "steps": 2,
+          "semitones": 4,
+          "octaveOffset": 0,
+          "startBeat": 0,
+          "durationBeats": 2
+        },
+        {
+          "steps": 6,
+          "semitones": 11,
+          "octaveOffset": 0,
+          "startBeat": 2,
+          "durationBeats": 2
+        },
+        {
+          "steps": 0,
+          "semitones": 0,
+          "octaveOffset": 0,
+          "startBeat": 4,
+          "durationBeats": 2
+        },
+        {
+          "steps": 4,
+          "semitones": 7,
+          "octaveOffset": 0,
+          "startBeat": 6,
+          "durationBeats": 2
+        }
+      ],
+      "harmonicContext": {
+        "chords": [
+          {
+            "symbol": "Cmaj7",
+            "beats": 4
+          },
+          {
+            "symbol": "Am7",
+            "beats": 4
+          }
+        ],
+        "originalKey": "C",
+        "function": "static major"
+      },
+      "contextKey": "M@0:4.m@9:4",
+      "functionKey": "other",
+      "chordQuality": null,
+      "patternHash": "4eed0a7557ce21a1",
+      "visibility": "public",
+      "license": "CC BY 4.0",
+      "moderationState": "approved",
+      "source": {
+        "artist": "LickLab (self-written example)",
+        "instrument": "bass",
+        "track": "",
+        "album": "",
+        "year": null,
+        "recordingUrl": "",
+        "timestampSeconds": null,
+        "location": ""
+      },
+      "tags": [
+        "guide tones",
+        "ballad"
+      ],
+      "difficulty": 2,
+      "notes": "3rd then 7th of Cmaj7 sliding into root and 5th of Am7. Half-note motion for ballads.",
+      "ownerId": "starter-pack",
+      "createdAt": "2026-10-13T00:00:00.000Z",
+      "updatedAt": "2026-10-13T00:00:00.000Z",
+      "deletedAt": null,
+      "schemaVersion": 2
+    }
+  ]
+}

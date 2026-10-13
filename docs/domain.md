@@ -41,5 +41,10 @@
   Generated ABC uses explicit accidentals + `K:C clef=…` (no key-signature
   dependence). Transpose views: concert / Bb (+2 semis) / Eb (+9) / bass clef
   (auto range-fit).
+- **Band plan**: deterministic, RNG-free backing events (voice bass/piano/
+  drums/lick; beats → seconds via `toTimedEvents`, one-bar count-in). Styles
+  `swing | ballad | bossa | straight`; walking bass lands roots on downbeats
+  and chromatically approaches the next root; comping uses rootless 3+7
+  shells; drum grids per style. See ADR-017.
 - Only chord changes + metadata sync to D1. Imported scores/MusicXML melodies
   (possibly copyrighted) and audio stay in the browser, never uploaded.

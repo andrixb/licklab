@@ -8,6 +8,8 @@
 
 import type { Lick } from "../domain/lick.js";
 import type { Song } from "../domain/song.js";
+import type { CatalogLick } from "../domain/matching.js";
+import type { TimedEvent } from "../domain/band.js";
 
 export interface LickFilter {
   readonly function?: string;
@@ -34,14 +36,30 @@ export interface SyncRemote {
   pullChanges(since: string): Promise<unknown[]>;
   pushChanges(changes: unknown[]): Promise<void>;
 }
+/**
+ * Anonymous read of public licks for matching. Implementations: static
+ * starter pack (offline), D1-backed HTTP catalog (M4), local cache.
+ * The UI/use cases never know which — they get CatalogLick[] (with likes).
+ */
+export interface PublicLickCatalog {
+  fetchPublicLicks(): Promise<CatalogLick[]>;
+}
 export interface SessionVerifier {
   verify(request: Request): Promise<{ ownerId: string } | null>;
 }
 export interface RateLimiter {
   check(key: string): Promise<{ allowed: boolean }>;
 }
+/** Play a scheduled chorus; resolves when playback ENDS (or is stopped). */
+export interface BandPlayback {
+  stop(): void;
+  finished: Promise<void>;
+}
 export interface AudioEngine {
-  readonly name: "audio-engine";
+  /** User-gesture unlock (Tone.start) — safe to call repeatedly. */
+  unlock(): Promise<void>;
+  play(events: readonly TimedEvent[], totalSeconds: number, gainDb?: number): BandPlayback;
+  readonly isPlaying: boolean;
 }
 export interface BackingProvider {
   readonly name: "backing-provider";

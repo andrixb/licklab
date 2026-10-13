@@ -3,9 +3,9 @@
 // https://www.gnu.org/licenses/gpl-3.0.html (no warranty)
 
 import React from "react";
-import { buildLickView, type LickViewKind } from "../application/lickViews.js";
+import { buildGuideTones, buildLickView, type LickViewKind } from "../application/lickViews.js";
 import type { Lick } from "../domain/lick.js";
-import { lickLab } from "./composition.js";
+import { lickLab, workspace } from "./composition.js";
 import { btnGhost, btnPrimary, tag } from "./primitives.js";
 import { NotationView } from "./NotationView.js";
 
@@ -45,6 +45,7 @@ export function LickDetailView({ id, onBack }: { id: string; onBack: () => void 
         </p>
       )}
       {lick.notes && <p className="text-dim text-sm">{lick.notes}</p>}
+      <p className="text-gold-dim text-sm font-semibold">{buildGuideTones(lick)}</p>
       <div className="my-4 flex flex-wrap gap-2" role="group" aria-label="Transposition view">
         {(Object.keys(VIEW_LABEL) as LickViewKind[]).map((v) => (
           <button
@@ -57,6 +58,13 @@ export function LickDetailView({ id, onBack }: { id: string; onBack: () => void 
             {VIEW_LABEL[v]}
           </button>
         ))}
+        <button
+          type="button"
+          className={btnGhost}
+          onClick={() => void workspace.playTwelveKeys(lick, "swing", { bass: true, piano: true, drums: true, tempoBpm: 120 })}
+        >
+          ▶ 12 keys
+        </button>
       </div>
       {rendered && <NotationView abc={rendered.abc} title={lick.title} />}
     </article>

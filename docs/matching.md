@@ -62,18 +62,18 @@ moderation-hidden licks are excluded upstream (query filters + client skip).
 
 ## Worked examples
 
-- **ii-V-I, all 12 keys.** `Dm7 G7 Cmaj7` → `m@0:4.7@7:4.M@0:4`,
-  `ii-V-I.maj`. Transposed to `F#m7 B7 Emaj7`: identical strings. A `Dm7 G7`
-  lick (`m@0:4.7@7:4`, `ii-V`) tier-1-matches as a window; a 4-beat single
-  `G7` lick (`7@0:4`, `dom`) also tier-1 (window = the V itself); a 2-beat
-  `G7` lick tier-3 (quality present, no exact 2-beat window).
-- **Minor ii-V-i.** `Dm7b5 G7 Cm7` → `h@0:4.7@7:4.m@0:4`, `ii-V-i.min`.
+- **ii-V-I, all 12 keys.** `Dm7 G7 Cmaj7` → `m@0:4.7@5:4.M@10:4`
+  (intervals measured from D), `ii-V-I.maj`. Transposed to `F#m7 B7 Emaj7`:
+  identical strings. A `Dm7 G7` lick (`m@0:4.7@5:4`, `ii-V`) tier-1-matches
+  as a window; a 4-beat single `G7` lick (`7@0:4`, `dom`) also tier-1
+  (window = the V itself); a 2-beat `G7` lick tier-3 (quality present, no
+  exact 2-beat window).
+- **Minor ii-V-i.** `Dm7b5 G7 Cm7` → `h@0:4.7@5:4.m@10:4`, `ii-V-i.min`.
   `Dm7 G7 Cm7` maps to the same functionKey (min ii allowed).
-- **Blues in F** (quick change) → one 12-bar segment `blues.12bar`; its
-  inner windows (e.g. bar 9–10 `C7 Bb7`) are NOT separate segments — dom
-  licks reach it via tier 3 (quality `dom7` present) only on the whole
-  segment; single-chord licks authored on `dom7@…:4` also tier-1 on any
-  4-beat window.
+- **Blues in F** (quick change) → one 12-chord segment `blues.12bar`
+  (contextKey is the 12-token string). A 4-beat `dom7` single-chord lick
+  tier-1-matches inside it (window = any bar); longer/other-shape dom licks
+  reach it via tier 2/3 as defined.
 - **Rhythm changes A.** `Cmaj7 Am7 Dm7 G7 Em7 A7 Dm7 G7` → segments
   `turnaround.maj` (bars 1–4), `ii-V-i.min` (Em7-A7-Dm7), `dom` (G7) —
   longest-first disambiguation as above.
