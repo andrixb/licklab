@@ -3,8 +3,8 @@
 **Milestone:** M1.5 + M2 + **M3 (workspace, band engine, audition, starter
 pack)** done. Catalog/sync (M4) and Phase-2 tools (M5) ahead; M3.5 (swap
 synths for CC0 samples) is the next polish step.
-**Live:** production `https://licklab.licklab.workers.dev` (M2 shipped;
-M3 pending preview verification).
+**Live:** production `https://licklab.licklab.workers.dev` (M2 + M3 shipped
+via CI; M3 verified first on version preview `5d913703`).
 **What works:**
 - M2 (matching core): signatures, analyzer, tiers + ranking, plausibility,
   Lick v2. **New in M3:**
