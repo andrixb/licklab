@@ -8,9 +8,9 @@ import { env } from "cloudflare:workers";
 import { beforeAll, describe, expect, it } from "vitest";
 import worker, { __resetRateLimitsForTests, type Env } from "../../src/worker/index.js";
 import { createAuth } from "../../src/worker/auth.js";
-import mig1 from "../../migrations/0001_init.sql?raw";
 import mig2 from "../../migrations/0002_auth.sql?raw";
 import mig3 from "../../migrations/0003_catalog.sql?raw";
+import mig4 from "../../migrations/0004_sync_isolation.sql?raw";
 
 const ORIGIN = "https://licklab.licklab.workers.dev";
 const SECRET = "test-secret-please-ignore-32-chars-min";
@@ -89,14 +89,31 @@ interface PushResp {
 }
 
 beforeAll(async () => {
-  const statements = `${mig1}\n${mig2}\n${mig3}`
+  const db = env.DB as D1Database;
+  // Run auth + catalog migrations first
+  for (const mig of [mig2, mig3]) {
+    const statements = mig
+      .split("\n")
+      .filter((l) => !l.trimStart().startsWith("--"))
+      .join("\n")
+      .split(";")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    await db.batch(statements.map((sql) => db.prepare(sql)));
+  }
+  // Drop tables that 0004 recreates with new schema (composite PKs)
+  for (const table of ["lick_like", "favorite", "pack_lick", "report", "moderation_log", "lick"]) {
+    await db.prepare(`DROP TABLE IF EXISTS ${table}`).run();
+  }
+  // Run 0004 to create tables with composite PKs
+  const statements4 = mig4
     .split("\n")
     .filter((l) => !l.trimStart().startsWith("--"))
     .join("\n")
     .split(";")
     .map((s) => s.trim())
     .filter(Boolean);
-  await (env.DB as D1Database).batch(statements.map((sql) => (env.DB as D1Database).prepare(sql)));
+  await db.batch(statements4.map((sql) => db.prepare(sql)));
 });
 
 describe("sync requires a session", () => {
