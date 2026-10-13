@@ -4,7 +4,7 @@ import { parseChordSymbol } from "../domain/chords.js";
 import type { Lick } from "../domain/lick.js";
 import { fitBassRange, transposeChordSymbol, transposeLick, transposeRoot } from "../domain/transpose.js";
 import { lickLab } from "./composition.js";
-import { btn, btnGhost, tag } from "./primitives.js";
+import { btnGhost, btnPrimary, tag } from "./primitives.js";
 import { NotationView } from "./NotationView.js";
 
 type View = "concert" | "Bb" | "Eb" | "bass";
@@ -65,7 +65,7 @@ export function LickDetailView({ id, onBack }: { id: string; onBack: () => void 
             key={v}
             type="button"
             aria-pressed={view === v}
-            className={view === v ? `${btn} border-gold bg-gold text-ink font-semibold` : btn}
+            className={view === v ? btnPrimary : btnGhost}
             onClick={() => setView(v)}
           >
             {VIEW_LABEL[v]}

@@ -3,9 +3,11 @@ import { auth, exportLibrary, getSignedInUser, onAuthChange, type SessionUser } 
 import { btn, btnPrimary, errorText } from "./primitives.js";
 import { ConfirmDialog } from "./ConfirmDialog.js";
 
-const menuItem =
-  "flex w-full items-center rounded-lg px-3 py-2.5 text-left text-[0.95rem] text-cream bg-transparent border-0 " +
-  "cursor-pointer hover:bg-gold hover:text-ink focus-visible:outline-2 focus-visible:outline-gold disabled:opacity-50";
+const menuItemBase =
+  "flex w-full items-center rounded-lg px-3 py-2.5 text-left text-[0.95rem] bg-transparent border-0 " +
+  "cursor-pointer focus-visible:outline-2 focus-visible:outline-gold disabled:opacity-50";
+const menuItem = `${menuItemBase} text-cream hover:bg-gold hover:text-ink`;
+const menuItemDanger = `${menuItemBase} text-danger hover:bg-danger-bg`;
 
 export default function AccountMenu(): React.JSX.Element {
   const [user, setUser] = React.useState<SessionUser | null>(getSignedInUser());
@@ -70,7 +72,7 @@ export default function AccountMenu(): React.JSX.Element {
               {item("Delete account…", async () => {
                 setOpen(false);
                 setConfirmOpen(true);
-              }, `${menuItem} text-danger hover:bg-danger-bg hover:text-danger`)}
+              }, menuItemDanger)}
             </>
           ) : (
             <>

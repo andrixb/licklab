@@ -1,14 +1,18 @@
 // ui/primitives: shared Tailwind class sets. The single place component-level
 // styling is reused; keep tokens in theme.css (@theme).
+// NOTE: each variant carries its OWN colors exactly once (base has none) —
+// stacking conflicting utilities (bg-surface + bg-gold) is order-dependent in
+// v4 and silently wins for the wrong class.
 
-export const btn =
-  "inline-flex items-center justify-center gap-2 rounded-xl border border-line bg-surface-2 text-cream " +
-  "min-h-11 px-4 py-2.5 font-medium transition-colors hover:bg-surface-3 cursor-pointer " +
-  "focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2 " +
+const btnBase =
+  "inline-flex items-center justify-center gap-2 rounded-xl border min-h-11 px-4 py-2.5 font-medium " +
+  "transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2 " +
   "disabled:opacity-50 disabled:cursor-wait";
-export const btnPrimary = `${btn} border-gold bg-gold text-ink font-semibold hover:bg-gold-hi`;
-export const btnGhost = `${btn} border-transparent bg-transparent text-dim hover:text-cream hover:bg-surface`;
-export const btnDanger = `${btn} border-danger-line bg-transparent text-danger hover:bg-danger-bg`;
+
+export const btn = `${btnBase} border-line bg-surface-2 text-cream hover:bg-surface-3`;
+export const btnPrimary = `${btnBase} border-gold bg-gold text-ink font-semibold hover:bg-gold-hi`;
+export const btnGhost = `${btnBase} border-transparent bg-transparent text-dim hover:text-cream hover:bg-surface`;
+export const btnDanger = `${btnBase} border-danger-line bg-transparent text-danger hover:bg-danger-bg`;
 export const btnLink =
   "border-none bg-transparent min-h-0 min-w-0 p-0 font-[inherit] text-[inherit] cursor-pointer hover:text-gold " +
   "focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2";
