@@ -39,7 +39,9 @@ export default defineConfig({
   ],
   build: {
     outDir: "dist",
-    sourcemap: true,
+    // No source maps shipped to production (free-tier file budget + not
+    // needed for triage; Worker error traces come from Workers Observability).
+    sourcemap: false,
     chunkSizeWarningLimit: 600,
   },
   server: {

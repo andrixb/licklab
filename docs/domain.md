@@ -13,11 +13,24 @@
   `static major`, `static minor`, `blues`, `other`.
 - **Guide tone**: 3rd (4th for sus; none for power chords) + 7th degrees;
   overlay highlights lick landings (M3).
-- **Lick**: `{ id, title, pattern: [{steps, semitones, octaveOffset, startBeat,
-  durationBeats}] (monophonic, canonical degrees), harmonicContext, source
+- **Lick** (schemaVersion 2): `{ id, title, pattern: [{steps, semitones, octaveOffset, startBeat,
+  durationBeats}] (monophonic, canonical degrees; ≤64 notes, context ≤32 beats, no overflow),
+  harmonicContext {chords, originalKey, function (author label)},
+  contextKey, functionKey, chordQuality, patternHash (all DERIVED, see
+  docs/matching.md), visibility private|unlisted|public, license (default
+  CC BY 4.0), moderationState, source
   {artist, instrument, track, album, year, recordingUrl, timestampSeconds,
   location}, tags, difficulty 1-5, notes, ownerId, createdAt, updatedAt,
-  deletedAt (soft-delete tombstone), schemaVersion: 1 }`.
+  deletedAt (soft-delete tombstone), schemaVersion }`.
+- **Progression** (v1): `{ id, title, key, bars: [[{chord, beats}]] (≤64
+  bars, ≤4 chords/bar), ownerId, timestamps, deletedAt, schemaVersion }`.
+  Private to owner; shareable statelessly via URL (M3). Typed entry
+  "Dm7 G7 | Cmaj7 |" supported. Presets ship in `domain/progression.ts`.
+- **Segment**: contiguous chord window with its own signatures, produced by
+  the analyzer (see docs/matching.md): rule windows longest-first, leftover
+  chords single-chord, `blues.12bar` whole-form detection.
+- **Matching tiers**: 1 exact context window, 2 same function, 3
+  single-chord quality; ranked by likes then recency; never overflows.
 - **Song** (minimal in M1; importers in M2): `{ title, composer, key, form:
   sections → bars → [{chord, beats}], externalUrl (e.g. realbook.site score
   page), origin: typed|musicxml|ireal|bundled-example, ownerId, timestamps,

@@ -1,3 +1,7 @@
+// Copyright (C) 2026 LickLab contributors
+// SPDX-License-Identifier: GPL-3.0-or-later — see LICENSE; full text:
+// https://www.gnu.org/licenses/gpl-3.0.html (no warranty)
+
 // adapters/dexie: Dexie (IndexedDB) LickRepository. Local-first store, one
 // database per namespace (per-user namespacing for shared devices; M4 attaches
 // the namespace to the account). Soft deletes stay as tombstones for sync.

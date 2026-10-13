@@ -1,10 +1,30 @@
+// Copyright (C) 2026 LickLab contributors
+// SPDX-License-Identifier: GPL-3.0-or-later — see LICENSE; full text:
+// https://www.gnu.org/licenses/gpl-3.0.html (no warranty)
+
 // domain/lick: the Lick entity + validation. Pattern notes store degrees
 // (diatonic steps + semitones) relative to the source chord root, so a lick
 // transposes by re-rooting with correct spelling (see pitch.spellDegree).
+// v2: derived key-independent signatures (contextKey/functionKey/chordQuality/
+// patternHash) + visibility/license/moderation state. Signatures are computed
+// here (single source of truth) from the parsed context; they are never taken
+// from unvalidated input.
 
+import type { ChordQuality } from "./chords.js";
 import { parseChordSymbol } from "./chords.js";
+import { patternHashOf, signaturesOf } from "./signatures.js";
 
-export const LICK_SCHEMA_VERSION = 1;
+export const LICK_SCHEMA_VERSION = 2;
+
+export type Visibility = "private" | "unlisted" | "public";
+export const VISIBILITIES: readonly Visibility[] = ["private", "unlisted", "public"];
+export type ModerationState = "pending" | "approved" | "hidden";
+export const MODERATION_STATES: readonly ModerationState[] = ["pending", "approved", "hidden"];
+export const DEFAULT_LICENSE = "CC BY 4.0";
+
+// Content limits (docs/domain.md): 8 bars, 64 notes, chord list bounded.
+export const MAX_PATTERN_NOTES = 64;
+export const MAX_CONTEXT_CHORDS = 16;
 
 export type LickFunction =
   | "ii-V-I major"
@@ -62,6 +82,14 @@ export interface Lick {
     readonly originalKey: string;
     readonly function: LickFunction;
   };
+  /** Derived signatures (recomputed on every parse; input values are ignored). */
+  readonly contextKey: string;
+  readonly functionKey: string;
+  readonly chordQuality: ChordQuality | null;
+  readonly patternHash: string;
+  readonly visibility: Visibility;
+  readonly license: string;
+  readonly moderationState: ModerationState;
   readonly source: LickSource;
   readonly tags: readonly string[];
   readonly difficulty: 1 | 2 | 3 | 4 | 5;
@@ -105,9 +133,10 @@ export function parseLick(input: unknown): Lick {
   const id = reqString(input.id, "id", 64);
   const title = reqString(input.title, "title", 120);
   const ownerId = reqString(input.ownerId, "ownerId", 128);
-  const schemaVersion = reqNumber(input.schemaVersion, "schemaVersion", 1, 1, true);
-  if (!Array.isArray(input.pattern) || input.pattern.length === 0 || input.pattern.length > 512) {
-    fail("pattern must have 1..512 notes");
+  // Accept v1 or v2 on input; always normalize output to the current version.
+  reqNumber(input.schemaVersion, "schemaVersion", 1, LICK_SCHEMA_VERSION, true);
+  if (!Array.isArray(input.pattern) || input.pattern.length === 0 || input.pattern.length > MAX_PATTERN_NOTES) {
+    fail(`pattern must have 1..${MAX_PATTERN_NOTES} notes`);
   }
   const pattern: LickNote[] = (input.pattern as unknown[]).map((n, i) => {
     if (!isRecord(n)) fail(`pattern[${i}] must be an object`);
@@ -150,6 +179,10 @@ export function parseLick(input: unknown): Lick {
     }
     return { symbol, beats: reqNumber(c.beats, `chords[${i}].beats`, 0.25, 64) };
   });
+  const totalContextBeats = chords.reduce((n, c) => n + c.beats, 0);
+  if (totalContextBeats > 32) fail("harmonic context too long (max 8 bars of 4/4 = 32 beats)");
+  const lastNote = pattern.reduce((m, n) => Math.max(m, n.startBeat + n.durationBeats), 0);
+  if (lastNote > totalContextBeats + 1e-9) fail("pattern overflows harmonic context");
   const originalKey = reqString(hc.originalKey, "harmonicContext.originalKey", 8);
   try {
     parseChordSymbol(`${originalKey}`);
@@ -180,11 +213,26 @@ export function parseLick(input: unknown): Lick {
   const updatedAt = reqString(input.updatedAt, "updatedAt", 64);
   if (Number.isNaN(Date.parse(createdAt)) || Number.isNaN(Date.parse(updatedAt))) fail("createdAt/updatedAt must be ISO dates");
   const deletedAt = input.deletedAt == null ? null : reqString(input.deletedAt, "deletedAt", 64);
+  const visibility = input.visibility == null ? "private" : (isEnum(input.visibility, VISIBILITIES, "visibility") as Visibility);
+  const license = reqString(input.license ?? DEFAULT_LICENSE, "license", 64);
+  const moderationState =
+    input.moderationState == null ? "approved" : (isEnum(input.moderationState, MODERATION_STATES, "moderationState") as ModerationState);
+  // Signatures are always derived (never trusted from input) — canonical form.
+  const sig = signaturesOf(chords);
+  const patternKey = `${sig.contextKey}`;
+  const patternHash = patternHashOf(pattern, patternKey);
   return {
     id,
     title,
     pattern,
     harmonicContext: { chords, originalKey, function: hc.function as LickFunction },
+    contextKey: sig.contextKey,
+    functionKey: sig.functionKey,
+    chordQuality: sig.chordQuality,
+    patternHash,
+    visibility,
+    license,
+    moderationState,
     source,
     tags: tagsRaw as string[],
     difficulty,
@@ -193,8 +241,13 @@ export function parseLick(input: unknown): Lick {
     createdAt,
     updatedAt,
     deletedAt,
-    schemaVersion,
+    schemaVersion: LICK_SCHEMA_VERSION,
   };
+}
+
+function isEnum(v: unknown, allowed: readonly string[], field: string): string {
+  if (typeof v !== "string" || !allowed.includes(v)) fail(`${field} must be one of ${allowed.join(", ")}`);
+  return v;
 }
 
 /** Total beats of the harmonic context (pattern is expected to fit inside). */

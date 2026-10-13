@@ -1,3 +1,7 @@
+// Copyright (C) 2026 LickLab contributors
+// SPDX-License-Identifier: GPL-3.0-or-later — see LICENSE; full text:
+// https://www.gnu.org/licenses/gpl-3.0.html (no warranty)
+
 import { describe, expect, it } from "vitest";
 import { abcToSaveInput, createLickFromAbc, LickInputError } from "./lickInput.js";
 import type { AbcLickInput } from "./lickInput.js";

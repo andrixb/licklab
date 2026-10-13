@@ -1,3 +1,7 @@
+// Copyright (C) 2026 LickLab contributors
+// SPDX-License-Identifier: GPL-3.0-or-later — see LICENSE; full text:
+// https://www.gnu.org/licenses/gpl-3.0.html (no warranty)
+
 // adapters/notation: Verovio WASM renderer (single-threaded build, no
 // SharedArrayBuffer/COOP/COEP so the YouTube embed keeps working).
 // The ~7MB module loads lazily on first render and stays out of the

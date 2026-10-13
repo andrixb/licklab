@@ -1,3 +1,7 @@
+// Copyright (C) 2026 LickLab contributors
+// SPDX-License-Identifier: GPL-3.0-or-later — see LICENSE; full text:
+// https://www.gnu.org/licenses/gpl-3.0.html (no warranty)
+
 // domain/abc: ABC-notation interchange for licks (entry + notation).
 // Supported subset (documented in domain.md): monophonic line, headers X:/L:/K:,
 // notes A-G/a-g with ^ _ = accidentals, ' , octave marks, lengths (2, /2, 3/2),

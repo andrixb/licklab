@@ -112,7 +112,7 @@ describe("auth routes", () => {
     expect(JSON.stringify(body)).not.toMatch(/password|accessToken|refreshToken|session_token/);
   });
 
-  it("auth endpoints rate-limit abusive IPs", async () => {
+  it("auth endpoints rate-limit abusive IPs (in-isolate fallback)", async () => {
     __resetRateLimitsForTests();
     const db = testEnv().DB;
     let last = 200;
@@ -121,5 +121,24 @@ describe("auth routes", () => {
     }
     expect(last).toBe(429);
     __resetRateLimitsForTests();
+  });
+
+  it("uses the native RL_AUTH binding when present", async () => {
+    const calls: string[] = [];
+    const rlAuth = {
+      limit: async ({ key }: { key: string }) => {
+        calls.push(key);
+        return { success: calls.length < 3 };
+      },
+    };
+    const db = testEnv().DB;
+    const fetchWithBinding = (path: string) =>
+      worker.fetch(new Request(`${ORIGIN}${path}`), { ...testEnv(), DB: db, RL_AUTH: rlAuth });
+    // Binding allows the first two (they reach the better-auth handler, not 429).
+    expect((await fetchWithBinding("/api/auth/nope")).status).not.toBe(429);
+    expect((await fetchWithBinding("/api/auth/nope")).status).not.toBe(429);
+    expect((await fetchWithBinding("/api/auth/nope")).status).toBe(429);
+    // Key is per-IP (unknown when no cf-connecting-ip in tests) and scoped to auth.
+    expect(calls.every((k) => k.startsWith("auth:"))).toBe(true);
   });
 });

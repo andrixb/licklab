@@ -1,29 +1,27 @@
 # STATUS.md — current state
 
-**Milestone:** M1 done; **Accounts/Auth milestone** (part of M4) done;
-songs/band engine (M2) and sync (rest of M4) still ahead.
-**Live:** production `https://licklab.licklab.workers.dev`.
-**What works:**
-- Lick library + ABC entry + engraved notation with Concert/Bb/Eb/Bass views
-  (correct enharmonics), 2 self-written seeds.
-- **Accounts**: Better Auth OAuth (Google/GitHub) over D1 via our own Kysely
-  dialect; sessions HttpOnly/Secure cookies + compact cookie cache; `/api/me`,
-  `/api/account/export`, `DELETE /api/account` (hard delete, owner-scoped);
-  sign-up gate via `allowed_email` (owner email seeded; `OPEN_SIGNUP=1` to open);
-  per-IP in-isolate rate limits. Signed-out local-only mode; on first sign-in
-  local licks attach to the user namespace.
-- **UI**: restyled with Tailwind v4 (ADR-010): dark jazz theme, cards, 44px
-  touch targets, native-dialog confirmations, lazy account menu + notation.
-**Tests:** 69 unit + 7 workerd auth tests (cross-user deletion, CSRF 403,
-gate, rate limit 429, export leak check); 2 e2e flows (create→notation→
-transpose→delete via confirm dialog; sign-in menu); coverage thresholds hold;
-budget 357/400 KB initial; arch rule 0 violations; docs-check 10 ADRs.
-**Known issues / next steps for sign-in:** OAuth apps NOT yet created —
-follow the "Secrets & auth configuration" table in `docs/deployment.md`
-(Google + GitHub apps, redirect URIs, then `wrangler secret put` ×4).
-Until then the app is fully usable signed-out. Sync (changes API, LWW,
-quotas, paused state) is the remaining M4 work; preview versions share prod
-D1; Verovio `.map` files still shipped.
-**Next:** M2 (song import + Tone.js band engine) or finish M4 sync — propose M2.
+**Milestone:** M1.5 (audit reconciliation) + **M2 (matching domain core)**
+done on top of the community-database replan. Accounts/auth remain done from
+the earlier milestone; songs/band (M3), catalog API + sync (M4) ahead.
+**Live:** production `https://licklab.licklab.workers.dev` (unchanged this
+milestone — M2 is client-side domain + docs only).
+**What works (new in M2):**
+- Signatures: `contextKey` (quality@rootInterval:beats), `functionKey`
+  (rule set incl. ii-V-I/ii-V-i/turnaround/V-I±tritone/cycle), `chordQuality`,
+  `patternHash` (ADR-012) — derived in `parseLick`, never trusted from input.
+- Progression entity + presets + segment analyzer (longest-first greedy
+  coverage, blues.12bar anchors), matching tiers 1/2/3 + likes/recency
+  ranking, plausibility check (warn-only) — all pure domain.
+- `findLicksForProgression` application use case; Lick schema v2 (ADR-011,
+  v1 rows normalize on read); `ratelimits` Worker binding (ADR-014); no
+  prod sourcemaps.
+**Tests:** 123 unit (was 69; +signatures/analyzer/matching/plausibility incl.
+12-key transposition invariance properties) + 8 workerd (added native-binding
+path); coverage domain 96–99%, application 100% (thresholds hold).
+**Known issues:** OAuth apps/secrets still not created (owner action,
+docs/deployment.md table); preview versions share prod D1 (isolate in M4);
+matching docs: `docs/matching.md`.
+**Next:** M3 — progression workspace (URL routing + shared links, presets,
+bar grid), Tone.js band engine behind ports, starter pack static asset.
 
 Cold-start: read `AGENTS.md`, then this file, then `docs/`.

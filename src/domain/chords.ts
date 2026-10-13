@@ -1,3 +1,7 @@
+// Copyright (C) 2026 LickLab contributors
+// SPDX-License-Identifier: GPL-3.0-or-later — see LICENSE; full text:
+// https://www.gnu.org/licenses/gpl-3.0.html (no warranty)
+
 // domain/chords: chord-symbol parsing + chord tones as degrees.
 // Pure. Covers the common jazz vocabulary; unknown suffixes are rejected
 // (importers surface the error) rather than guessed.

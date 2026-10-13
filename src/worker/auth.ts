@@ -1,3 +1,7 @@
+// Copyright (C) 2026 LickLab contributors
+// SPDX-License-Identifier: GPL-3.0-or-later — see LICENSE; full text:
+// https://www.gnu.org/licenses/gpl-3.0.html (no warranty)
+
 // worker/auth: Better Auth over D1 (OAuth only — no passwords, no hashing,
 // safe for the 10ms free-tier CPU budget). Sessions live in D1; cookies are
 // HttpOnly/Secure/SameSite; API is same-origin with Origin/Fetch-Metadata

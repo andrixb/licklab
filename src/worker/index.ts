@@ -1,3 +1,7 @@
+// Copyright (C) 2026 LickLab contributors
+// SPDX-License-Identifier: GPL-3.0-or-later — see LICENSE; full text:
+// https://www.gnu.org/licenses/gpl-3.0.html (no warranty)
+
 // worker: thin driving adapter. Routing → auth check → validate → use case → JSON.
 // No business logic, no heavy compute here. Harmonic matching etc. run client-side.
 import { checkHealth } from "../application/health.js";
@@ -9,23 +13,38 @@ export interface Env extends AuthEnv {
   ASSETS: {
     fetch(request: Request): Promise<Response>;
   };
+  /** Native rate-limit bindings (ADR-014); absent in some local runtimes. */
+  RL_AUTH?: RateLimitLike;
+  RL_ACCOUNT?: RateLimitLike;
 }
 
-// Best-effort in-memory sliding-window limits (per-isolate; the WAF rule in
-// docs/security-and-auth.md is the hard edge). Auth endpoints are cheap;
-// sync endpoints get tighter budgets in their milestone.
+/** Minimal shape of the Workers ratelimits binding (worker-configuration types not in main tsconfig). */
+export interface RateLimitLike {
+  limit(opts: { key: string }): Promise<{ success: boolean }>;
+}
+
+// Fallback for runtimes without the ratelimits binding (older miniflare):
+// best-effort in-memory sliding window per isolate. Production always uses
+// the native binding (per-CF-location counters, ~0 CPU).
 const WINDOW_MS = 60_000;
 const hits = new Map<string, number[]>();
 export function __resetRateLimitsForTests(): void {
   hits.clear();
 }
-function rateLimit(key: string, limit: number): boolean {
+function fallbackRateLimit(key: string, limit: number): boolean {
   const now = Date.now();
   const recent = (hits.get(key) ?? []).filter((t) => now - t < WINDOW_MS);
   if (recent.length >= limit) return false;
   recent.push(now);
   hits.set(key, recent);
   return true;
+}
+async function rateLimit(binding: RateLimitLike | undefined, fallbackKey: string, fallbackLimit: number): Promise<boolean> {
+  if (binding) {
+    const { success } = await binding.limit({ key: fallbackKey });
+    return success;
+  }
+  return fallbackRateLimit(fallbackKey, fallbackLimit);
 }
 
 function json(data: unknown, status = 200, extra?: HeadersInit): Response {
@@ -90,7 +109,7 @@ export default {
     }
 
     if (url.pathname.startsWith("/api/auth/")) {
-      if (!rateLimit(`auth:${clientIp(request)}`, 30)) {
+      if (!(await rateLimit(env.RL_AUTH, `auth:${clientIp(request)}`, 30))) {
         return json({ ok: false, error: { code: "rate_limited", message: "too many requests, try later" } }, 429);
       }
       const auth = getAuth(env, appOrigin);
@@ -134,7 +153,7 @@ export default {
       if (!isSameOrigin(request, appOrigin)) {
         return json({ ok: false, error: { code: "forbidden", message: "origin check failed" } }, 403);
       }
-      if (!rateLimit(`account:${clientIp(request)}`, 10)) {
+      if (!(await rateLimit(env.RL_ACCOUNT, `account:${clientIp(request)}`, 10))) {
         return json({ ok: false, error: { code: "rate_limited", message: "too many requests, try later" } }, 429);
       }
       const auth = getAuth(env, appOrigin);

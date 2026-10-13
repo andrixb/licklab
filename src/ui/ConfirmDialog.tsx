@@ -1,3 +1,7 @@
+// Copyright (C) 2026 LickLab contributors
+// SPDX-License-Identifier: GPL-3.0-or-later — see LICENSE; full text:
+// https://www.gnu.org/licenses/gpl-3.0.html (no warranty)
+
 import React from "react";
 import { btnDanger, btnGhost, dialog, dialogActions, dialogBody, dialogTitle } from "./primitives.js";
 

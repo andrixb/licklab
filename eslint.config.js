@@ -26,6 +26,13 @@ export default tseslint.config(
     rules: { "boundaries/element-types": "off" },
   },
   {
+    // Tests assert invariants they establish themselves (e.g. "segment 0 is
+    // the ii-V-I"); non-null reads keep expectations readable under
+    // noUncheckedIndexedAccess. Source files must still guard or cast.
+    files: ["**/*.test.ts", "tests/**/*.ts"],
+    rules: { "@typescript-eslint/no-non-null-assertion": "off" },
+  },
+  {
     plugins: { boundaries },
     settings: {
       "boundaries/elements": [

@@ -1,3 +1,7 @@
+// Copyright (C) 2026 LickLab contributors
+// SPDX-License-Identifier: GPL-3.0-or-later — see LICENSE; full text:
+// https://www.gnu.org/licenses/gpl-3.0.html (no warranty)
+
 // application/licks: lick use cases. Ports only — no adapters, no UI.
 // Timestamps/ids come from injected Clock/IdGenerator (testable, no wall clock).
 
@@ -12,6 +16,8 @@ export interface SaveLickInput {
   readonly tags?: readonly string[];
   readonly difficulty?: Lick["difficulty"];
   readonly notes?: string;
+  readonly visibility?: Lick["visibility"];
+  readonly license?: string;
 }
 
 export interface SaveLickDeps {
@@ -43,6 +49,8 @@ export async function saveLick(deps: SaveLickDeps, ownerId: string, input: SaveL
     tags: input.tags ?? [],
     difficulty: input.difficulty ?? 3,
     notes: input.notes ?? "",
+    visibility: input.visibility ?? "private",
+    license: input.license,
     ownerId,
     createdAt: now,
     updatedAt: now,

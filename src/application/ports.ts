@@ -1,3 +1,7 @@
+// Copyright (C) 2026 LickLab contributors
+// SPDX-License-Identifier: GPL-3.0-or-later — see LICENSE; full text:
+// https://www.gnu.org/licenses/gpl-3.0.html (no warranty)
+
 // application ports (interfaces owned by the application layer).
 // Full list per spec; implementations live in adapters/ or worker/.
 // UI talks to use cases; use cases talk to these ports; never to adapters directly.

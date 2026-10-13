@@ -1,3 +1,7 @@
+// Copyright (C) 2026 LickLab contributors
+// SPDX-License-Identifier: GPL-3.0-or-later — see LICENSE; full text:
+// https://www.gnu.org/licenses/gpl-3.0.html (no warranty)
+
 // application: use cases depend only on port interfaces + shared schemas.
 // M0 placeholder: health check + shared response envelope used by client and Worker.
 

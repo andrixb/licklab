@@ -1,3 +1,7 @@
+// Copyright (C) 2026 LickLab contributors
+// SPDX-License-Identifier: GPL-3.0-or-later — see LICENSE; full text:
+// https://www.gnu.org/licenses/gpl-3.0.html (no warranty)
+
 // ui/primitives: shared Tailwind class sets. The single place component-level
 // styling is reused; keep tokens in theme.css (@theme).
 // NOTE: each variant carries its OWN colors exactly once (base has none) —

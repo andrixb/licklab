@@ -1,3 +1,7 @@
+// Copyright (C) 2026 LickLab contributors
+// SPDX-License-Identifier: GPL-3.0-or-later — see LICENSE; full text:
+// https://www.gnu.org/licenses/gpl-3.0.html (no warranty)
+
 // domain/song: minimal Song entity (chord changes + metadata). Melodies and
 // imported scores are never modeled here — only changes sync to the cloud.
 // Full importers (MusicXML/iReal/typed) land in M2; M1 needs the shape + validation.

@@ -1,3 +1,7 @@
+// Copyright (C) 2026 LickLab contributors
+// SPDX-License-Identifier: GPL-3.0-or-later — see LICENSE; full text:
+// https://www.gnu.org/licenses/gpl-3.0.html (no warranty)
+
 // application/lickInput: create-a-lick-from-ABC use case. The parse +
 // validate + assemble pipeline is business logic and lives here (on top of
 // the domain); components only collect raw fields and surface errors.
