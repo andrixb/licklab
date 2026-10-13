@@ -1,7 +1,10 @@
 # ui rules
 
-React components + view-models only. No business logic (that lives in domain/
-use cases). Talk to use cases, never to adapters directly. The single exception
+React components + view-models only. **No business logic in a component**:
+domain/use cases own it. If you find yourself importing `domain/*` logic to
+compute something (transposing, parsing ABC, matching), add/extend an
+application view-model builder instead and have the component render its
+result (e.g. `application/lickViews.ts`, `application/lickInput.ts`). Talk to use cases, never to adapters directly. The single exception
 is `composition.ts` (composition root, lint-excepted): it wires Dexie/Verovio
 adapters to use-case closures; every other file imports composition, application
 or domain only. Mobile-friendly, large touch targets (at the instrument).

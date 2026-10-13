@@ -22,6 +22,9 @@ Local-first PWA (Dexie/IndexedDB source of truth) + thin Worker API + D1 synced 
 Dependency rule (lint-enforced, fails CI): `domain <- application <-
 adapters/worker/ui`. No cycles. Single exception: `ui/composition.ts`
 (composition root) wires adapters to use-case closures for components.
+**UI components carry no business logic**: view-model builders with real
+logic live in the application layer (`lickViews.ts` transposition views,
+`lickInput.ts` ABC entry); components render results + forward intent only.
 Harmonic matching, transposition, notation run
 client-side in domain; Worker stays thin (10 ms CPU budget). Sync: push chunks
 + `GET /api/changes?since=<cursor>`, LWW per record in domain.

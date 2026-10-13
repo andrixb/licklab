@@ -1,6 +1,4 @@
 import React from "react";
-import { abcToPattern, parseAbcNotes } from "../domain/abc.js";
-import { parseChordSymbol } from "../domain/chords.js";
 import { LICK_FUNCTIONS, type LickFunction } from "../domain/lick.js";
 import { lickLab } from "./composition.js";
 import { btnGhost, btnPrimary, card, errorText, input, label, textarea } from "./primitives.js";
@@ -22,17 +20,15 @@ export function NewLickView({ onSaved, onCancel }: { onSaved: (id: string) => vo
     e.preventDefault();
     setError(null);
     try {
-      const root = parseChordSymbol(chord).root;
-      const { pattern } = abcToPattern(parseAbcNotes(abc), root);
-      if (pattern.length === 0) throw new Error("ABC has no notes (only rests?)");
-      const lick = await lickLab.createLick({
+      const lick = await lickLab.createLickFromAbc({
         title,
-        pattern,
-        harmonicContext: { chords: [{ symbol: chord.trim(), beats: 4 }], originalKey: originalKey.trim(), function: fn },
-        source: { artist: artist.trim(), instrument: "" },
-        tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
+        abc,
+        chord,
+        originalKey,
+        function: fn,
+        artist,
+        tags: tags.split(","),
         difficulty: Number(difficulty) as 1 | 2 | 3 | 4 | 5,
-        notes: "",
       });
       onSaved(lick.id);
     } catch (err) {

@@ -14,7 +14,7 @@ songs/band engine (M2) and sync (rest of M4) still ahead.
   local licks attach to the user namespace.
 - **UI**: restyled with Tailwind v4 (ADR-010): dark jazz theme, cards, 44px
   touch targets, native-dialog confirmations, lazy account menu + notation.
-**Tests:** 62 unit + 7 workerd auth tests (cross-user deletion, CSRF 403,
+**Tests:** 69 unit + 7 workerd auth tests (cross-user deletion, CSRF 403,
 gate, rate limit 429, export leak check); 2 e2e flows (create→notation→
 transpose→delete via confirm dialog; sign-in menu); coverage thresholds hold;
 budget 357/400 KB initial; arch rule 0 violations; docs-check 10 ADRs.
