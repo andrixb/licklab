@@ -15,5 +15,7 @@ deploys — strip or hidden-sourcemap later); preview versions share prod D1
 (no writes happen yet); CI secrets not set (local OAuth deploys); PNG icons
 are generated placeholders.
 **Next:** M2 (song import: MusicXML/iReal/typed + Tone.js band engine).
+**Licence:** code now GPL-3.0-or-later (`LICENSE`, ADR-009); M5 time-stretch
+must avoid RubberBand (GPL-2.0-only, incompatible).
 
 Cold-start: read `AGENTS.md`, then this file, then `docs/`.

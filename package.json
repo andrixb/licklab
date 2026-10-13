@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "description": "LickLab — store jazz licks and try them over real standards. Local-first PWA + thin Worker API + D1.",
+  "license": "GPL-3.0-or-later",
   "scripts": {
     "dev": "vite",
     "build": "npm run typecheck && vite build",

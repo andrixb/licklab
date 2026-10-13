@@ -1,5 +1,11 @@
 # Legal
 
+- **Code licence**: all original LickLab code is GPL-3.0-or-later (`LICENSE`,
+  ADR-009). Compatible deps only: MIT, Apache-2.0, LGPL-3.0-or-later (Verovio —
+  combined work stays GPL; keep the LGPL linking disclosure), CC0 / CC BY 3.0
+  sample data. **Forbidden**: GPL-2.0-only code (incompatible with GPL-3.0) —
+  this rules out RubberBand for time-stretch; M5 must use SoundTouch (LGPL) or
+  a non-copyleft engine.
 - **realbook.site**: terms forbid automated bulk download/redistribution. No
   scraping or crawling. Interact by link-out (`Song.externalUrl`) + importing
   files the user provides. UX study only — no copied assets/branding.
@@ -8,8 +14,9 @@
   Policies §III). Use `youtube-nocookie` embed; preserve controls.
 - **Samples**: VSCO 2 CE (CC0, incl. double bass), Virtuosity Drums (CC0),
   Salamander Grand (CC BY 3.0 — attribution page required). Ship curated
-  subsets only. Verovio LGPL-3.0 (linking disclosure). Time-stretch: prefer
-  non-copyleft for MVP (RubberBand GPL-2.0-only / SoundTouch LGPL implications).
+  subsets only. Verovio LGPL-3.0-or-later (linking disclosure). Time-stretch:
+  SoundTouch (LGPL) or non-copyleft only — RubberBand is GPL-2.0-only and
+  incompatible with GPL-3.0 (see ADR-009).
 - **Weimar Jazz DB (ODbL)**: bulk import = Derivative Database → share-alike +
   attribution if publicly used. Prefer hand-transcribed inspired licks; any bulk
   seeding needs ODbL compliance.

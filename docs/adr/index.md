@@ -10,3 +10,4 @@
 | [ADR-006](adr-006-dexie-local-store.md) | Dexie local-first store, one DB per namespace | Accepted |
 | [ADR-007](adr-007-verovio-abc-notation.md) | Verovio notation, ABC interchange, lazy WASM | Accepted |
 | [ADR-008](adr-008-pwa-workbox.md) | PWA precache shell + runtime-cache WASM | Accepted |
+| [ADR-009](adr-009-gpl-license.md) | Code under GPL-3.0-or-later; no GPL-2.0-only deps | Accepted |

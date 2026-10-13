@@ -31,3 +31,8 @@ npm run typecheck && npm run lint && npm run test && npm run build
 ```
 
 See `AGENTS.md` for all commands and `docs/STATUS.md` for current state.
+
+## License
+
+GPL-3.0-or-later — see `LICENSE`. Sample libraries and Verovio keep their own
+licences (CC0, CC BY 3.0, LGPL-3.0-or-later); details in `docs/legal.md`.
