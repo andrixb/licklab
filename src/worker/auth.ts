@@ -102,17 +102,18 @@ export function createAuth(db: D1Like, env: AuthEnv, origin: string, opts: { ena
     account: { encryptOAuthTokens: true },
     database: kyselyAdapter(kyselyDb, { type: "sqlite" }),
     databaseHooks: {
-      session: {
+      // Sign-up gate lives on USER creation, not session creation.
+      // `user.create.before` receives the email directly (no DB read), so it
+      // cannot be defeated by D1 read-after-write/replica lag mid-OAuth-callback.
+      // A session.create hook did exactly that lookup and left existing users
+      // permanently unable to sign in (user row present, sessions never
+      // created). Returning users keep signing in; revoking access later is
+      // the admin-suspend mechanism, not this gate.
+      user: {
         create: {
-          // Sign-up gate: block session creation for unlisted emails while closed.
-          before: async (session) => {
+          before: async (user) => {
             if (isSignupOpen(env)) return;
-            const user = await kyselyDb
-              .selectFrom("user")
-              .select("email")
-              .where("id", "=", session.userId)
-              .executeTakeFirst();
-            if (!user || !(await isEmailAllowed(db, user.email))) return false;
+            if (!user.email || !(await isEmailAllowed(db, user.email))) return false;
           },
         },
       },

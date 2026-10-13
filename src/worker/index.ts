@@ -55,6 +55,8 @@ interface LickChord {
 }
 
 export interface Env extends AuthEnv {
+  /** Shared secret for /api/admin/* (Cloudflare Access fronts the UI; this is the second factor). */
+  ADMIN_TOKEN?: string;
   DB: D1Like;
   ASSETS: {
     fetch(request: Request): Promise<Response>;
@@ -288,6 +290,16 @@ export default {
     if (url.pathname.match(/^\/api\/packs\/[^/]+\/licks\/[^/]+$/) && request.method === "DELETE")
       return handleRemoveFromPack(request, env);
     if (url.pathname.match(/^\/api\/packs\/[^/]+$/) && request.method === "GET") return handleGetPack(request, env);
+
+    // ----- Reports (account required) + moderation (admin only) -----
+    if (url.pathname === "/api/reports" && request.method === "POST") return handleCreateReport(request, env);
+    if (url.pathname === "/api/admin/reports" && request.method === "GET") return handleAdminReports(request, env);
+    if (url.pathname.match(/^\/api\/admin\/reports\/[^/]+\/(dismiss|action)$/) && request.method === "POST")
+      return handleAdminResolveReport(request, env);
+    if (url.pathname.match(/^\/api\/admin\/licks\/[^/]+\/hide$/) && request.method === "POST")
+      return handleAdminHideLick(request, env);
+    if (url.pathname.match(/^\/api\/admin\/licks\/[^/]+\/unhide$/) && request.method === "POST")
+      return handleAdminUnhideLick(request, env);
 
 if (url.pathname.startsWith("/api/")) {
       return json({ ok: false, error: { code: "not_found", message: "unknown api route" } }, 404);
@@ -733,4 +745,136 @@ async function handleRemoveFromPack(request: Request, env: Env): Promise<Respons
 function packIdFrom(url: string): string | null {
   const m = /\/api\/packs\/([^/]+)\/licks/.exec(new URL(url).pathname);
   return m?.[1] ? decodeURIComponent(m[1]) : null;
+}
+
+// ---- Reports + admin moderation ----
+
+const REPORT_REASONS = ["copyright", "spam", "offensive", "other"] as const;
+const ADMIN_HEADER = "x-licklab-admin-token";
+
+/**
+ * Admin endpoints are protected two ways: Cloudflare Access in front of the
+ * admin UI, plus this shared-secret check in the Worker so a leaked Access
+ * cookie alone is not enough. Constant-time compare on equal length.
+ */
+function isAdmin(request: Request, env: Env): boolean {
+  const token = env.ADMIN_TOKEN;
+  const given = request.headers.get(ADMIN_HEADER) ?? "";
+  if (!token) return false;
+  if (given.length !== token.length) return false;
+  let diff = 0;
+  for (let i = 0; i < token.length; i++) diff |= token.charCodeAt(i) ^ given.charCodeAt(i);
+  return diff === 0;
+}
+
+async function handleCreateReport(request: Request, env: Env): Promise<Response> {
+  return withSession(request, env, async (userId) => {
+    const body = (await request.json().catch(() => ({}))) as { lickId?: string; reason?: string; comment?: string };
+    const lickId = body.lickId?.trim();
+    const reason = body.reason ?? "";
+    if (!lickId || !REPORT_REASONS.includes(reason as (typeof REPORT_REASONS)[number])) {
+      return jsonError("invalid_input", "lickId + reason required (copyright|spam|offensive|other)", 400);
+    }
+    const comment = (body.comment ?? "").slice(0, 500);
+    const lick = await env.DB.prepare("SELECT id FROM lick WHERE id = ?").bind(lickId).first<{ id: string }>();
+    if (!lick) return jsonError("not_found", "lick not found", 404);
+    // One open report per user+lick; a re-report updates the comment.
+    const existing = await env.DB
+      .prepare("SELECT id FROM report WHERE lick_id = ? AND reporter_id = ? AND state = 'open'")
+      .bind(lickId, userId)
+      .first<{ id: string }>();
+    if (existing) {
+      await env.DB.prepare("UPDATE report SET comment = ? WHERE id = ?").bind(comment, existing.id).run();
+      return json({ ok: true, data: { reportId: existing.id, updated: true } });
+    }
+    const id = crypto.randomUUID();
+    await env.DB.prepare("INSERT INTO report (id, lick_id, reporter_id, reason, comment, state, created_at) VALUES (?, ?, ?, ?, ?, 'open', ?)")
+      .bind(id, lickId, userId, reason, comment, Date.now())
+      .run();
+    // Threshold auto-hide: several independent reports pull a lick down
+    // while a human reviews the queue (never deletes — that's the admin's call).
+    const open = (await env.DB.prepare("SELECT COUNT(*) AS n FROM report WHERE lick_id = ? AND state = 'open'")
+      .bind(lickId)
+      .first<{ n: number }>()) ?? { n: 0 };
+    if (open.n >= 3) {
+      await env.DB.prepare("UPDATE lick SET moderation_state = 'hidden', updated_at = ? WHERE id = ?")
+        .bind(Date.now(), lickId)
+        .run();
+      await invalidatePublicReads();
+    }
+    return json({ ok: true, data: { reportId: id } }, 201);
+  });
+}
+
+async function handleAdminReports(request: Request, env: Env): Promise<Response> {
+  if (!isAdmin(request, env)) return jsonError("forbidden", "admin only", 403);
+  const open = (await env.DB.prepare(
+    `SELECT r.id, r.lick_id, r.reason, r.comment, r.created_at, r.state,
+            l.title AS lick_title, l.owner_id AS lick_owner, l.moderation_state
+     FROM report r JOIN lick l ON l.id = r.lick_id
+     WHERE r.state = 'open' ORDER BY r.created_at DESC LIMIT 200`,
+  )
+    .bind()
+    .all()) as { results: Record<string, unknown>[] };
+  return json({ ok: true, data: { reports: open.results ?? [] } });
+}
+
+async function handleAdminResolveReport(request: Request, env: Env): Promise<Response> {
+  if (!isAdmin(request, env)) return jsonError("forbidden", "admin only", 403);
+  const m = /^\/api\/admin\/reports\/([^/]+)\/(dismiss|action)$/.exec(new URL(request.url).pathname);
+  if (!m) return jsonError("invalid_input", "report id + action required", 400);
+  const reportId = decodeURIComponent(m[1] as string);
+  const action = m[2] as "dismiss" | "action";
+  const report = (await env.DB.prepare("SELECT id, lick_id FROM report WHERE id = ? AND state = 'open'")
+    .bind(reportId)
+    .first()) as { id: string; lick_id: string } | null;
+  if (!report) return jsonError("not_found", "open report not found", 404);
+  const moderator = await currentUserId(request, env);
+  await env.DB.prepare("UPDATE report SET state = ?, resolved_at = ?, resolver_id = ? WHERE id = ?")
+    .bind(action === "dismiss" ? "dismissed" : "actioned", Date.now(), moderator ?? "admin-token", reportId)
+    .run();
+  // Close every other open report against the same lick.
+  await env.DB.prepare("UPDATE report SET state = ?, resolved_at = ? WHERE lick_id = ? AND state = 'open'")
+    .bind(action === "dismiss" ? "dismissed" : "actioned", Date.now(), report.lick_id)
+    .run();
+  return json({ ok: true, data: { resolved: action } });
+}
+
+async function handleAdminHideLick(request: Request, env: Env): Promise<Response> {
+  if (!isAdmin(request, env)) return jsonError("forbidden", "admin only", 403);
+  const id = adminLickId(request.url, "hide");
+  if (!id) return jsonError("invalid_input", "lick id required", 400);
+  const r = await env.DB.prepare("UPDATE lick SET moderation_state = 'hidden', updated_at = ? WHERE id = ?")
+    .bind(Date.now(), id)
+    .run();
+  if ((r as { meta: { changes: number } }).meta.changes === 0) return jsonError("not_found", "lick not found", 404);
+  await logAdmin(env, "hide", id, request);
+  await invalidatePublicReads();
+  return json({ ok: true, data: { hidden: true } });
+}
+
+async function handleAdminUnhideLick(request: Request, env: Env): Promise<Response> {
+  if (!isAdmin(request, env)) return jsonError("forbidden", "admin only", 403);
+  const id = adminLickId(request.url, "unhide");
+  if (!id) return jsonError("invalid_input", "lick id required", 400);
+  const r = await env.DB.prepare("UPDATE lick SET moderation_state = 'approved', updated_at = ? WHERE id = ?")
+    .bind(Date.now(), id)
+    .run();
+  if ((r as { meta: { changes: number } }).meta.changes === 0) return jsonError("not_found", "lick not found", 404);
+  await logAdmin(env, "unhide", id, request);
+  await invalidatePublicReads();
+  return json({ ok: true, data: { hidden: false } });
+}
+
+function adminLickId(url: string, verb: "hide" | "unhide"): string | null {
+  const m = new RegExp(`^/api/admin/licks/([^/]+)/${verb}$`).exec(new URL(url).pathname);
+  return m?.[1] ? decodeURIComponent(m[1]) : null;
+}
+
+async function logAdmin(env: Env, action: string, lickId: string, request: Request): Promise<void> {
+  const moderator = (await currentUserId(request, env)) ?? "admin-token";
+  const body = (await request.json().catch(() => ({}))) as { reason?: string };
+  await env.DB.prepare("INSERT INTO moderation_log (id, moderator_id, target_lick_id, action, reason, created_at) VALUES (?, ?, ?, ?, ?, ?)")
+    .bind(crypto.randomUUID(), moderator, lickId, action, (body.reason ?? "").slice(0, 500), Date.now())
+    .run();
 }
