@@ -106,17 +106,18 @@ export const auth = {
   async signIn(provider: "google" | "github"): Promise<void> {
     const { createAuthClient } = await import("better-auth/client");
     const client = createAuthClient({ baseURL: window.location.origin });
-    const result = (await client.signIn.social({ provider, callbackURL: window.location.origin })) as
-      | { url?: string; redirect?: boolean; error?: { message?: string } }
-      | null;
-    if (result?.error) throw new Error(result.error.message ?? "sign-in failed");
-    if (!result?.url) throw new Error("provider not configured");
-    window.location.href = result.url;
+    // better-auth v1 returns BetterFetchResponse<T> = { data, error }, not the url directly.
+    const res = await client.signIn.social({ provider, callbackURL: window.location.origin });
+    if (res?.error) throw new Error(res.error.message ?? "sign-in failed");
+    const url = res?.data?.url;
+    if (!url) throw new Error("provider not configured");
+    window.location.href = url;
   },
   async signOut(): Promise<void> {
     const { createAuthClient } = await import("better-auth/client");
     const client = createAuthClient({ baseURL: window.location.origin });
-    await client.signOut();
+    const res = await client.signOut();
+    if (res?.error) throw new Error(res.error.message ?? "sign-out failed");
     await bindUser(null);
   },
   async deleteAccount(): Promise<void> {
