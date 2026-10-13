@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 import { buildChorus, chorusSeconds, toTimedEvents, type BandPart } from "../../src/domain/band.js";
 import { flattenProgression, parseProgressionInput } from "../../src/domain/progression.js";
-import { toPlaybackInstructions } from "../../src/adapters/tone/schedule.js";
+import { toPlaybackInstructions, voiceForInstrument } from "../../src/adapters/tone/schedule.js";
 import { createFakeAudioEngine } from "../../src/adapters/memory/audio.js";
 
 const part: BandPart = { bass: true, piano: true, drums: true, tempoBpm: 120 };
@@ -43,6 +43,25 @@ describe("tone scheduling mapping", () => {
     const instr = toPlaybackInstructions(toTimedEvents(plan, 120));
     const accented = instr.filter((i) => i.velocity === 1);
     expect(accented.length).toBeGreaterThan(0);
+  });
+  it("every percussion instrument routes to the single drums voice", () => {
+    // Regression: the engine looks up voices by name, and "kick"/"hat"/... are
+    // not voice names — unmapped percussion was silently dropped.
+    for (const d of ["kick", "snare", "hat", "ride", "rideBell", "crash"] as const) {
+      expect(voiceForInstrument(d)).toBe("drums");
+    }
+  });
+  it("pitched voices keep their own sampler; drums never steal one", () => {
+    expect(voiceForInstrument("bass")).toBe("bass");
+    expect(voiceForInstrument("piano")).toBe("piano");
+    expect(voiceForInstrument("lick")).toBe("lick");
+  });
+  it("a full chorus + lick plan only produces known voices", () => {
+    const plan = buildChorus(flat, "swing", part);
+    const lickNote = { voice: "lick" as const, timeBeats: 4, durationBeats: 1, midi: 60, timeSeconds: 4.5, durationSeconds: 0.5, accent: false };
+    const instr = toPlaybackInstructions([...toTimedEvents(plan, 120), lickNote]);
+    expect(instr.some((i) => i.instrument === "lick")).toBe(true);
+    expect(instr.every((i) => ["bass", "piano", "drums", "lick"].includes(voiceForInstrument(i.instrument)))).toBe(true);
   });
 });
 

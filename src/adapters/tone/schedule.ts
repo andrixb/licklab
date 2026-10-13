@@ -11,14 +11,8 @@ import type { TimedEvent, Voice } from "../../domain/band.js";
 
 export type Instrument = "bass" | "piano" | "kick" | "snare" | "hat" | "ride" | "rideBell" | "crash" | "lick";
 
-export interface PlaybackInstruction {
-  readonly instrument: Instrument;
-  /** MIDI number (pitched voices from the domain's spelled math; drums per GM). */
-  readonly note: number;
-  readonly timeSeconds: number;
-  readonly durationSeconds: number;
-  readonly velocity: number;
-}
+/** Which loaded sampler voice an instruction plays through. */
+export type SamplerVoice = "bass" | "piano" | "drums" | "lick";
 
 const DRUM_INSTRUMENT: Record<string, Instrument> = {
   kick: "kick",
@@ -28,6 +22,25 @@ const DRUM_INSTRUMENT: Record<string, Instrument> = {
   "ride-bell": "rideBell",
   crash: "crash",
 };
+
+/**
+ * All percussion instruments share ONE drum sampler (keyed by GM note); only
+ * bass/piano/lick have their own. Pure, so routing is unit-testable without
+ * loading a single sample.
+ */
+export function voiceForInstrument(instrument: Instrument): SamplerVoice {
+  if (instrument === "bass" || instrument === "piano" || instrument === "lick") return instrument;
+  return "drums";
+}
+
+export interface PlaybackInstruction {
+  readonly instrument: Instrument;
+  /** MIDI number (pitched voices from the domain's spelled math; drums per GM). */
+  readonly note: number;
+  readonly timeSeconds: number;
+  readonly durationSeconds: number;
+  readonly velocity: number;
+}
 
 export function toPlaybackInstructions(events: readonly TimedEvent[]): PlaybackInstruction[] {
   return events.map((e) => {

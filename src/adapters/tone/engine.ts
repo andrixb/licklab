@@ -3,23 +3,16 @@
 // https://www.gnu.org/licenses/gpl-3.0.html (no warranty)
 
 // adapters/tone: AudioEngine via Tone.js Transport (never setTimeout for
-// audio). The ~200KB tone module loads lazily on first play to stay out of
-// the initial payload (budget check). Sample-based voices (CC0/CC-BY) loaded
-// on first play; Tone.Transport schedules all events.
-
-// Copyright (C) 2026 Andrea Baldo
-// SPDX-License-Identifier: GPL-3.0-or-later — see LICENSE; full text:
-// https://www.gnu.org/licenses/gpl-3.0.html (no warranty)
-
-// adapters/tone: AudioEngine via Tone.js Transport (never setTimeout for
-// audio). The ~200KB tone module loads lazily on first play to stay out of
-// the initial payload (budget check). Sample-based voices (CC0/CC-BY) loaded
-// on first play; synth fallback for immediate playback.
+// audio). The ~200KB tone module loads lazily on first play to stay out of the
+// initial payload (budget check). Sample-based voices (CC0/CC-BY) load on first
+// play; Tone.Transport schedules all events. Nothing is triggered before its
+// sampler's buffers have decoded (guaranteed by the `ready` promises in
+// ./samplers — `Sampler.loaded` is only a boolean, never an awaitable).
 
 import type { AudioEngine, BandPlayback } from "../../application/ports.js";
 import type { TimedEvent } from "../../domain/band.js";
-import { toPlaybackInstructions, type Instrument, type PlaybackInstruction } from "./schedule.js";
-import { getBassSampler, getDrumSampler, getPianoSampler } from "./samplers.js";
+import { toPlaybackInstructions, voiceForInstrument, type PlaybackInstruction } from "./schedule.js";
+import { getBassSampler, getDrumSampler, getLickSampler, getPianoSampler } from "./samplers.js";
 
 type ToneModule = typeof import("tone");
 
@@ -40,46 +33,26 @@ export function createToneEngine(): AudioEngine {
     if (!voices && tone) {
       const T = tone;
       await T.start().catch(() => undefined); // user-gesture unlock; silent fallback if denied
-      
-      const [bass, piano, drums] = await Promise.all([
-        getBassSampler(),
-        getPianoSampler(),
-        getDrumSampler(),
-      ]);
-      
-      // Lick sampler uses the piano samples but with different envelope
-      const lickSampler = new T.Sampler({
-        urls: {}, // will be set per-lick
-        baseUrl: "/samples/piano/",
-        onload: () => console.log("[Tone] Lick sampler loaded"),
-      });
-      await lickSampler.loaded;
-      
-      voices = { bass, piano, drums, lick: lickSampler };
-      
+      // Each loader resolves only once every buffer has decoded, so playback
+      // can never start half-loaded (Tone throws on an unloaded buffer).
+      const [bass, piano, drums, lick] = await Promise.all([getBassSampler(), getPianoSampler(), getDrumSampler(), getLickSampler()]);
+      voices = { bass, piano, drums, lick };
+
       // Set default volumes
       bass.volume.value = -6;
       piano.volume.value = -6;
       drums.volume.value = -8;
-      lickSampler.volume.value = -2;
+      lick.volume.value = -2;
     }
     if (!tone) throw new Error("tone unavailable");
     return tone;
   }
 
-  function triggerSampler(_T: ToneModule, v: SamplerVoiceSet, i: PlaybackInstruction, at: number): void {
-    const sec = i.durationSeconds;
-    const vset = v[i.instrument as keyof SamplerVoiceSet];
-    if (!vset) return;
-    
-    // For lick voice, we need to set the correct sample URL
-    if (i.instrument === "lick" && i.note) {
-      // The lick sampler needs the correct sample URL
-      // We'll use the piano sampler as base but trigger with the lick's pitch
-      vset.triggerAttackRelease(i.note, sec, at, i.velocity);
-    } else {
-      vset.triggerAttackRelease(i.note, sec, at, i.velocity);
-    }
+  function triggerSampler(v: SamplerVoiceSet, i: PlaybackInstruction, at: number): void {
+    const sampler = v[voiceForInstrument(i.instrument)];
+    // Belt and braces: never trigger a voice whose buffers are not ready.
+    if (!sampler.loaded) return;
+    sampler.triggerAttackRelease(i.note, i.durationSeconds, at, i.velocity);
   }
 
   return {
@@ -106,7 +79,7 @@ export function createToneEngine(): AudioEngine {
           tr.cancel(0);
           if (!voices) return;
           const vs = voices;
-          for (const i of instructions) tr.schedule((time) => !stopped && triggerSampler(T, vs, i, time), i.timeSeconds);
+          for (const i of instructions) tr.schedule((time) => !stopped && triggerSampler(vs, i, time), i.timeSeconds);
           tr.schedule(() => {
             if (!stopped) cleanup(T);
             resolveDone();
@@ -131,4 +104,4 @@ export function createToneEngine(): AudioEngine {
   };
 }
 
-export type { Instrument };
+export type { Instrument } from "./schedule.js";

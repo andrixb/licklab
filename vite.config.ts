@@ -42,6 +42,17 @@ export default defineConfig({
             options: { cacheName: "starter-pack", networkTimeoutSeconds: 5, expiration: { maxEntries: 2, maxAgeSeconds: 86_400 } },
           },
           {
+            // Samples (~2.6 MB): never precached (install would stall), but
+            // cached hard after the first audition so the band plays offline.
+            urlPattern: /\/samples\/.*\.wav$/,
+            handler: "CacheFirst",
+            options: {
+              cacheName: "samples",
+              expiration: { maxEntries: 40, maxAgeSeconds: 2_592_000 },
+              rangeRequests: false,
+            },
+          },
+          {
             // Tone chunk (~330KB) — lazy but cached hard after first play.
             urlPattern: /\/assets\/tone-.*\.js$/,
             handler: "CacheFirst",
