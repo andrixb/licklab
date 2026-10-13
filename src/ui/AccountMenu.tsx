@@ -22,6 +22,21 @@ export default function AccountMenu(): React.JSX.Element {
   const wrapRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => onAuthChange(setUser), []);
+  // The account menu is lazy-loaded and can mount AFTER App's auth check has
+  // already run (auth.me() resolves before the chunk loads). Without this,
+  // a signed-in user would see "Sign in" forever. Fetch on mount.
+  React.useEffect(() => {
+    let cancelled = false;
+    void auth
+      .me()
+      .then((u) => {
+        if (!cancelled && u) setUser(u);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   React.useEffect(() => {
     if (!open) return;
     const close = (e: MouseEvent) => {
