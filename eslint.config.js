@@ -1,0 +1,52 @@
+import js from "@eslint/js";
+import tseslint from "typescript-eslint";
+import boundaries from "eslint-plugin-boundaries";
+
+const nodeGlobals = {
+  console: "readonly",
+  process: "readonly",
+  URL: "readonly",
+  module: "readonly",
+  require: "readonly",
+  __dirname: "readonly",
+};
+
+export default tseslint.config(
+  { ignores: ["dist/**", "node_modules/**", "test-results/**", "playwright-report/**", "scripts/**", "*.js", "*.d.ts"] },
+  js.configs.recommended,
+  ...tseslint.configs.strict,
+  {
+    files: ["*.config.*", ".dependency-cruiser.*"],
+    languageOptions: { globals: nodeGlobals },
+  },
+  {
+    plugins: { boundaries },
+    settings: {
+      "boundaries/elements": [
+        { type: "domain", pattern: "src/domain/**" },
+        { type: "application", pattern: "src/application/**" },
+        { type: "adapters", pattern: "src/adapters/**" },
+        { type: "worker", pattern: "src/worker/**" },
+        { type: "ui", pattern: "src/ui/**" },
+      ],
+    },
+    rules: {
+      // Clean/hexagonal: dependencies point inward only.
+      // domain <- application <- adapters, worker, ui
+      "boundaries/element-types": [
+        "error",
+        {
+          default: "disallow",
+          rules: [
+            { from: "domain", allow: [] },
+            { from: "application", allow: ["domain"] },
+            { from: "adapters", allow: ["domain", "application"] },
+            { from: "worker", allow: ["domain", "application"] },
+            { from: "ui", allow: ["domain", "application"] },
+          ],
+        },
+      ],
+      "boundaries/no-private": "off",
+    },
+  },
+);

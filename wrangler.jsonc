@@ -1,0 +1,28 @@
+// Wrangler config — Workers Static Assets + thin /api Worker + D1.
+// Verified against developers.cloudflare.com (Phase 0, Oct 2026).
+// Static hits are free/unlimited; only /api/* invokes the Worker (billable).
+// Single environment: previews use `wrangler versions upload`, which mints a
+// version preview URL (<version>-licklab.<subdomain>.workers.dev) per upload.
+// Trade-off (see ADR-002): preview versions share this env's D1 binding, so
+// preview builds must not write test data once real tables land (M4).
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "licklab",
+  "compatibility_date": "2026-10-01",
+  "main": "src/worker/index.ts",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "licklab",
+      "database_id": "6c19499e-272a-4d95-a13b-7523d9991c3c",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "observability": { "enabled": true }
+}

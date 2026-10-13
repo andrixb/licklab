@@ -1,0 +1,2 @@
+# Copy to .dev.vars (gitignored) for local `wrangler dev`. Never commit real secrets.
+# CLOUDFLARE_ACCOUNT_ID=

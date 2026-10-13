@@ -1,0 +1,9 @@
+{
+  "name": "LickLab",
+  "short_name": "LickLab",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b0b0f",
+  "theme_color": "#0b0b0f",
+  "description": "Store jazz licks and try them over real standards."
+}

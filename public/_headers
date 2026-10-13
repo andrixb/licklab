@@ -1,0 +1,12 @@
+# Long immutable caching for hashed Vite assets; WASM correct type; security headers.
+# NOTE: _headers applies to asset responses only, not Worker /api responses
+# (Worker sets its own headers in code). Max 100 rules.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+/*.wasm
+  Content-Type: application/wasm
+  Cache-Control: public, max-age=31536000, immutable
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; frame-src https://www.youtube-nocookie.com https://www.youtube.com; object-src 'none'; base-uri 'self'; frame-ancestors 'self'
