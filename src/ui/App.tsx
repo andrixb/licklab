@@ -80,8 +80,8 @@ export function App(): React.JSX.Element {
       )}
       <footer className="mt-9 pt-3.5 border-t border-line text-dim text-sm">
         <p>
-          Local-first: your licks live in this browser. Scores you import and audio you load never leave this device — only chord
-          changes sync to the cloud. Standards playback lives at{" "}
+          Your private licks stay local-first; publish one and it goes to the community catalog. Imported scores and audio you load never
+          leave this device. Standards playback lives at{" "}
           <a href="https://realbook.site/" rel="noreferrer">
             realbook.site
           </a>{" "}

@@ -22,8 +22,18 @@ via CI; M3 verified first on version preview `5d913703`).
 **Known issues:** OAuth apps/secrets still not created (owner action);
 preview versions share prod D1 (fix in M4); initial JS 375/400 KB — M4 UI
 must keep lazy-loading; sample-based audio not yet wired (synths now).
-**Next:** preview-verify M3, then M4 — catalog D1 tables + cached read API,
-submission/gate/quotas, favorites, sync, moderation, preview-D1 isolation.
+**What works (added this round):**
+- **Edge-cached public reads** (ADR-013): Cache API + SHA-256 ETag (`304`
+  on `If-None-Match`, no body), `s-maxage=300, stale-while-revalidate=60`,
+  `RL_READ` rate-limit binding (120/min/IP); lookup capped at 100 signatures.
+- **Account deletion is complete**: hard-deletes licks, pack + membership,
+  favorites, likes, reports, quota, progression and auth rows — asserted by
+  a workerd test that no row survives in any table.
+- 18 workerd tests (was 8): cache headers, ETag 304, session-gated writes,
+  tampered `ownerId` rejected (owner = session UUID), per-user rate cap.
+
+**Next:** favorites API, packs, reports + admin moderation, sync engine
+(changes API + LWW), submission UI, preview-D1 isolation.
 
 
 Cold-start: read `AGENTS.md`, then this file, then `docs/`.

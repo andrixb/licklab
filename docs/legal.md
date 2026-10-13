@@ -20,8 +20,10 @@
 - **Weimar Jazz DB (ODbL)**: bulk import = Derivative Database → share-alike +
   attribution if publicly used. Prefer hand-transcribed inspired licks; any bulk
   seeding needs ODbL compliance.
-- **Cloud storage**: only chord changes + metadata in D1. Imported scores /
-  MusicXML melodies (possibly copyrighted) and all audio stay local, never uploaded.
+- **Cloud storage**: D1 holds user licks (pattern + harmonic context +
+  metadata), chord changes and loop markers. Imported scores / MusicXML
+  melodies (possibly copyrighted) and ALL audio stay local, never uploaded —
+  so the cloud never redistributes copyrighted scores or recordings.
 - **Privacy/GDPR**: minimum account data, in-app export + deletion, no third-party
   trackers. Privacy policy + terms ship in-app (M4).
 

@@ -8,6 +8,7 @@ import worker, { __resetRateLimitsForTests, type Env } from "../../src/worker/in
 import { createAuth } from "../../src/worker/auth.js";
 import mig1 from "../../migrations/0001_init.sql?raw";
 import mig2 from "../../migrations/0002_auth.sql?raw";
+import mig3 from "../../migrations/0003_catalog.sql?raw";
 
 const ORIGIN = "http://localhost";
 const SECRET = "test-secret-please-ignore";
@@ -47,7 +48,7 @@ async function get(path: string, db: Env["DB"], cookie?: string, init?: RequestI
 }
 
 beforeAll(async () => {
-  const statements = `${mig1}\n${mig2}`
+  const statements = `${mig1}\n${mig2}\n${mig3}`
     .split("\n")
     .filter((l) => !l.trimStart().startsWith("--"))
     .join("\n")

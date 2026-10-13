@@ -14,10 +14,10 @@ and earbop.app — studied for UX only.
   you provide. Bundled tunes are public-domain or self-written.
 - **No YouTube extraction:** IFrame playback + speed/A-B loops only; no audio
   access, download, or caching (YouTube API ToS).
-- **Cloud stores little:** D1 holds licks, chord changes + metadata, loop
-  markers. Imported scores/MusicXML melodies and all audio stay in your browser
-  (IndexedDB/OPFS), never uploaded — so the cloud never redistributes
-  copyrighted scores or recordings.
+- **Cloud stores licks, never media:** D1 holds user-submitted licks (pattern
+  + harmonic context + metadata) and chord changes. Imported scores, MusicXML
+  melodies and all audio stay in your browser (IndexedDB/OPFS), never
+  uploaded — so the cloud never redistributes copyrighted scores or recordings.
 - **Samples:** VSCO 2 CE double bass (CC0), Virtuosity Drums (CC0), Salamander
   piano (CC BY 3.0 — see in-app attribution page). Full terms in `docs/legal.md`.
 

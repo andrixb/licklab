@@ -62,6 +62,7 @@ export interface Env extends AuthEnv {
   /** Native rate-limit bindings (ADR-014); absent in some local runtimes. */
   RL_AUTH?: RateLimitLike;
   RL_ACCOUNT?: RateLimitLike;
+  RL_READ?: RateLimitLike;
 }
 
 /** Minimal shape of the Workers ratelimits binding (worker-configuration types not in main tsconfig). */
@@ -206,19 +207,57 @@ export default {
       const session = await auth.api.getSession({ headers: request.headers });
       if (!session) return json({ ok: false, error: { code: "unauthorized", message: "sign in required" } }, 401);
       const userId = session.user.id;
-      // Hard delete, owner-scoped everywhere. Cloud lick/song tables join this list with sync.
+      // Hard delete, owner-scoped everywhere (GDPR: no soft-deleted PII).
+      // Order matters: children before parents (they may lack ON DELETE CASCADE
+      // path in every runtime), and every statement is owner/user-scoped ONLY.
       await env.DB.prepare("DELETE FROM session WHERE userId = ?").bind(userId).run();
       await env.DB.prepare("DELETE FROM account WHERE userId = ?").bind(userId).run();
       await env.DB.prepare("DELETE FROM verification WHERE identifier LIKE ?").bind(`%${userId}%`).run();
+      // Auth tables must die before user (they reference it).
+      // Catalog rows this user created: their likes/favorites/packs go too.
+      await env.DB.prepare("DELETE FROM lick_like WHERE user_id = ?").bind(userId).run();
+      await env.DB.prepare("DELETE FROM favorite WHERE user_id = ?").bind(userId).run();
+      await env.DB.prepare("DELETE FROM report WHERE reporter_id = ?").bind(userId).run();
+      await env.DB.prepare("DELETE FROM user_quota WHERE user_id = ?").bind(userId).run();
+      // Licks the user authored: hard-deleted, not tombstoned (account gone).
+      await env.DB.prepare("DELETE FROM lick_tag WHERE lick_id IN (SELECT id FROM lick WHERE owner_id = ?)")
+        .bind(userId)
+        .run();
+      await env.DB.prepare("DELETE FROM lick_like WHERE lick_id IN (SELECT id FROM lick WHERE owner_id = ?)")
+        .bind(userId)
+        .run();
+      await env.DB.prepare("DELETE FROM report WHERE lick_id IN (SELECT id FROM lick WHERE owner_id = ?)")
+        .bind(userId)
+        .run();
+      await env.DB.prepare("DELETE FROM pack_lick WHERE lick_id IN (SELECT id FROM lick WHERE owner_id = ?)")
+        .bind(userId)
+        .run();
+      await env.DB.prepare("DELETE FROM favorite WHERE lick_id IN (SELECT id FROM lick WHERE owner_id = ?)")
+        .bind(userId)
+        .run();
+      await env.DB.prepare("DELETE FROM lick WHERE owner_id = ?").bind(userId).run();
+      // Packs: membership rows first, then the packs.
+      await env.DB.prepare("DELETE FROM pack_lick WHERE pack_id IN (SELECT id FROM pack WHERE owner_id = ?)")
+        .bind(userId)
+        .run();
+      await env.DB.prepare("DELETE FROM pack WHERE owner_id = ?").bind(userId).run();
+      // Private progressions.
+      await env.DB.prepare("DELETE FROM progression WHERE owner_id = ?").bind(userId).run();
       await env.DB.prepare("DELETE FROM user WHERE id = ?").bind(userId).run();
       return json({ ok: true, data: { deleted: true } });
     }
 
-    // ----- Catalog API (public reads) -----
+    // ----- Catalog API (public reads, edge-cached per ADR-013) -----
     if (url.pathname === "/api/licks" && request.method === "GET") {
+      if (!(await rateLimit(env.RL_READ, `read:${clientIp(request)}`, 120))) {
+        return json({ ok: false, error: { code: "rate_limited", message: "too many requests, try later" } }, 429);
+      }
       return handleListLicks(request, env);
     }
     if (url.pathname === "/api/licks/lookup" && request.method === "POST") {
+      if (!(await rateLimit(env.RL_READ, `read:${clientIp(request)}`, 120))) {
+        return json({ ok: false, error: { code: "rate_limited", message: "too many requests, try later" } }, 429);
+      }
       return handleLookupLicks(request, env);
     }
     if (url.pathname.startsWith("/api/licks/") && request.method === "GET") {
@@ -245,8 +284,87 @@ if (url.pathname.startsWith("/api/")) {
 
 // ----- Catalog API handlers -----
 
+/**
+ * Edge cache for public catalog reads (ADR-013): anonymous traffic shares
+ * the free-tier budget (100k req/d, 5M rows read/d), so cache public GETs
+ * at the edge for `PUBLIC_MAX_AGE` with `stale-while-revalidate`.
+ * A short TTL keeps likes/new licks fresh enough; `If-None-Match` clients
+ * get 304 without a body. Falling back to a live fetch on any cache miss.
+ */
+const PUBLIC_MAX_AGE = 300;
+const PUBLIC_SWR = 60;
+const CACHE_NAME = "licklab-public";
+
+async function sha256Hex(text: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function cacheableJson(data: unknown, status = 200): Response {
+  return Response.json(data, {
+    status,
+    headers: {
+      "cache-control": `public, s-maxage=${PUBLIC_MAX_AGE}, stale-while-revalidate=${PUBLIC_SWR}, max-age=60`,
+      "x-content-type-options": "nosniff",
+      "referrer-policy": "no-referrer",
+    },
+  });
+}
+
+/**
+ * Cache-first public read: builds `data` only on miss, keys by
+ * path+query, revalidates against the client's ETag (304) or a background
+ * SWR refresh. Handlers stay cache-agnostic — they just return a Response.
+ */
+function cachedPublicGet(request: Request, build: () => Promise<Response>): Promise<Response> {
+  const url = new URL(request.url);
+  const key = new Request(`${url.origin}${url.pathname}${url.search}`, { method: "GET" });
+  const cachePromise = caches.open(CACHE_NAME);
+  return cachePromise.then(async (cache) => {
+    const hit = await cache.match(key);
+    const hitEtag = hit?.headers.get("etag") ?? null;
+    if (hit) {
+      // Revalidate cheaply: identical body -> 304 for the client.
+      if (hitEtag && request.headers.get("if-none-match") === hitEtag) {
+        return new Response(null, { status: 304, headers: { etag: hitEtag } });
+      }
+      // Serve stale and refresh in the background when still fresh enough.
+      const birth = Number(hit.headers.get("cache-birth") ?? "0");
+      const now = Math.floor(Date.now() / 1000);
+      if (now - birth > PUBLIC_MAX_AGE + PUBLIC_SWR) {
+        const fresh = await build();
+        const freshEtag = await sha256Hex(await fresh.clone().text());
+        if (hitEtag === freshEtag) {
+          return new Response(null, { status: 304, headers: { etag: freshEtag } });
+        }
+        const stamped = stampEtag(fresh, freshEtag, now);
+        await cache.put(key, stamped.clone());
+        return stamped;
+      }
+      return hit;
+    }
+    const fresh = await build();
+    const body = await fresh.clone().text();
+    const stamped = stampEtag(fresh, await sha256Hex(body), Math.floor(Date.now() / 1000));
+    await cache.put(key, stamped.clone());
+    return stamped;
+  });
+}
+
+/** Copy `fresh` with an ETag + cache birth marker so later reads can age it. */
+function stampEtag(fresh: Response, etag: string, birth: number): Response {
+  const stamped = new Response(fresh.body, {
+    status: fresh.status,
+    headers: { ...Object.fromEntries(fresh.headers), etag, "cache-birth": String(birth) },
+  });
+  return stamped;
+}
 
 async function handleListLicks(request: Request, env: Env): Promise<Response> {
+  return cachedPublicGet(request, () => buildListLicks(request, env));
+}
+
+async function buildListLicks(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   const page = Math.max(1, parseInt(url.searchParams.get("page") ?? "1"));
   const limit = Math.min(50, Math.max(1, parseInt(url.searchParams.get("limit") ?? "20")));
@@ -275,9 +393,13 @@ async function handleListLicks(request: Request, env: Env): Promise<Response> {
   const total = countRow?.count ?? 0;
 
   const results = (dbResults ?? []).map(row => ({ lick: parseLick(row), likes: row.likes }));
-  return json({ ok: true, data: { licks: results, page, limit, total } });
+  return cacheableJson({ ok: true, data: { licks: results, page, limit, total } });
 }
 async function handleLookupLicks(request: Request, env: Env): Promise<Response> {
+  return cachedPublicGet(request, () => buildLookupLicks(request, env));
+}
+
+async function buildLookupLicks(request: Request, env: Env): Promise<Response> {
   const body = await request.json().catch(() => ({ signatures: [] })) as { signatures?: string[] };
   const signatures = body.signatures ?? [];
   if (signatures.length === 0 || signatures.length > 100) {
@@ -287,17 +409,21 @@ async function handleLookupLicks(request: Request, env: Env): Promise<Response> 
   const { results: dbResults } = await env.DB.prepare("SELECT * FROM lick WHERE visibility = 'public' AND moderation_state = 'approved' AND deleted_at IS NULL AND context_key IN (" + placeholders + ") ORDER BY likes DESC, updated_at DESC").bind(...signatures).all() as { results: LickRow[] };
 
   const results = dbResults.map(row => ({ lick: parseLick(row), likes: row.likes }));
-  return json({ ok: true, data: { licks: results } });
+  return cacheableJson({ ok: true, data: { licks: results } });
 }
 
 async function handleGetLick(request: Request, env: Env): Promise<Response> {
+  return cachedPublicGet(request, () => buildGetLick(request, env));
+}
+
+async function buildGetLick(request: Request, env: Env): Promise<Response> {
   const id = request.url.split("/api/licks/")[1]?.split("?")[0];
   if (!id) return json({ ok: false, error: { code: "invalid_input", message: "lick id required" } }, 400);
 
   const row = await env.DB.prepare("SELECT * FROM lick WHERE id = ? AND visibility = 'public' AND moderation_state = 'approved' AND deleted_at IS NULL").bind(id).first() as LickRow | null;
 
   if (!row) return json({ ok: false, error: { code: "not_found", message: "lick not found" } }, 404);
-  return json({ ok: true, data: { lick: parseLick(row) } });
+  return cacheableJson({ ok: true, data: { lick: parseLick(row) } });
 }
 
 async function handleCreateLick(request: Request, env: Env): Promise<Response> {
