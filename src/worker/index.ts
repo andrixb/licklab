@@ -8,7 +8,7 @@ import { checkHealth } from "../application/health.js";
 import { createAuth, type AppAuth, type AuthEnv } from "./auth.js";
 import type { D1Like } from "./d1-dialect.js";
 import { patternHashOf, signaturesOf } from "../domain/signatures.js";
-import { parseLick } from "../domain/lick.js";
+import { fromRow } from "../adapters/d1/lick.js";
 
 interface LickRow {
   id: string;
@@ -275,6 +275,20 @@ export default {
       return handleUnlikeLick(request, env);
     }
 
+    // ----- Collections: favorites + packs (session required) -----
+    if (url.pathname === "/api/favorites" && request.method === "GET") return handleListFavorites(request, env);
+    if (url.pathname.match(/^\/api\/licks\/[^/]+\/favorite$/) && request.method === "PUT")
+      return handleAddFavorite(request, env);
+    if (url.pathname.match(/^\/api\/licks\/[^/]+\/favorite$/) && request.method === "DELETE")
+      return handleRemoveFavorite(request, env);
+
+    if (url.pathname === "/api/packs" && request.method === "GET") return handleListPacks(request, env);
+    if (url.pathname === "/api/packs" && request.method === "POST") return handleCreatePack(request, env);
+    if (url.pathname.match(/^\/api\/packs\/[^/]+\/licks$/) && request.method === "POST") return handleAddToPack(request, env);
+    if (url.pathname.match(/^\/api\/packs\/[^/]+\/licks\/[^/]+$/) && request.method === "DELETE")
+      return handleRemoveFromPack(request, env);
+    if (url.pathname.match(/^\/api\/packs\/[^/]+$/) && request.method === "GET") return handleGetPack(request, env);
+
 if (url.pathname.startsWith("/api/")) {
       return json({ ok: false, error: { code: "not_found", message: "unknown api route" } }, 404);
     }
@@ -351,6 +365,25 @@ function cachedPublicGet(request: Request, build: () => Promise<Response>): Prom
   });
 }
 
+/**
+ * Drop cached public reads whose path starts with /api/licks. The catalog is
+ * written to (creates, likes) far less often than read, and the entries
+ * number in the tens, so an invalidate-on-write keeps the 5-minute TTL from
+ * showing a user's own new lick as missing.
+ */
+async function invalidatePublicReads(): Promise<void> {
+  try {
+    const cache = await caches.open(CACHE_NAME);
+    const keys = await cache.keys();
+    for (const key of keys) {
+      const path = new URL(key.url).pathname;
+      if (path === "/api/licks" || path.startsWith("/api/licks/")) await cache.delete(key);
+    }
+  } catch {
+    /* cache unavailable (local dev) — reads still work, just uncached */
+  }
+}
+
 /** Copy `fresh` with an ETag + cache birth marker so later reads can age it. */
 function stampEtag(fresh: Response, etag: string, birth: number): Response {
   const stamped = new Response(fresh.body, {
@@ -392,7 +425,7 @@ async function buildListLicks(request: Request, env: Env): Promise<Response> {
   const countRow = await env.DB.prepare(countSql).bind(...countParams).first<{ count: number }>();
   const total = countRow?.count ?? 0;
 
-  const results = (dbResults ?? []).map(row => ({ lick: parseLick(row), likes: row.likes }));
+  const results = (dbResults ?? []).map(row => ({ lick: fromRow(row), likes: row.likes }));
   return cacheableJson({ ok: true, data: { licks: results, page, limit, total } });
 }
 async function handleLookupLicks(request: Request, env: Env): Promise<Response> {
@@ -408,7 +441,7 @@ async function buildLookupLicks(request: Request, env: Env): Promise<Response> {
   const placeholders = signatures.map(() => "?").join(",");
   const { results: dbResults } = await env.DB.prepare("SELECT * FROM lick WHERE visibility = 'public' AND moderation_state = 'approved' AND deleted_at IS NULL AND context_key IN (" + placeholders + ") ORDER BY likes DESC, updated_at DESC").bind(...signatures).all() as { results: LickRow[] };
 
-  const results = dbResults.map(row => ({ lick: parseLick(row), likes: row.likes }));
+  const results = dbResults.map(row => ({ lick: fromRow(row), likes: row.likes }));
   return cacheableJson({ ok: true, data: { licks: results } });
 }
 
@@ -423,7 +456,7 @@ async function buildGetLick(request: Request, env: Env): Promise<Response> {
   const row = await env.DB.prepare("SELECT * FROM lick WHERE id = ? AND visibility = 'public' AND moderation_state = 'approved' AND deleted_at IS NULL").bind(id).first() as LickRow | null;
 
   if (!row) return json({ ok: false, error: { code: "not_found", message: "lick not found" } }, 404);
-  return cacheableJson({ ok: true, data: { lick: parseLick(row) } });
+  return cacheableJson({ ok: true, data: { lick: fromRow(row) } });
 }
 
 async function handleCreateLick(request: Request, env: Env): Promise<Response> {
@@ -452,12 +485,13 @@ async function handleCreateLick(request: Request, env: Env): Promise<Response> {
   await env.DB.prepare("INSERT INTO lick (id, owner_id, title, pattern, harmonic_context, context_key, function_key, chord_quality, pattern_hash, visibility, license, moderation_state, source_artist, source_instrument, source_track, source_album, source_year, source_recording_url, source_timestamp_seconds, source_location, tags, difficulty, notes, likes, created_at, updated_at, deleted_at, schema_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(
     crypto.randomUUID(), session.user.id, body.title, JSON.stringify(body.pattern), JSON.stringify(body.harmonicContext),
     sig.contextKey, sig.functionKey, sig.chordQuality, patternHash,
-    body.visibility ?? "private", body.license ?? "CC BY 4.0", "pending",
+    body.visibility ?? "private", body.license ?? "CC BY 4.0", "approved",
     body.source?.artist ?? "", body.source?.instrument ?? "", body.source?.track ?? "", body.source?.album ?? "",
     body.source?.year ?? null, body.source?.recordingUrl ?? "", body.source?.timestampSeconds ?? null, body.source?.location ?? "",
     JSON.stringify(body.tags ?? []), body.difficulty ?? 3, body.notes ?? "", 0, Date.now(), Date.now(), null, 2
   ).run();
 
+  await invalidatePublicReads();
   await env.DB.prepare("INSERT INTO user_quota (user_id, licks_created_today, last_reset_day) VALUES (?, 1, ?) ON CONFLICT(user_id) DO UPDATE SET licks_created_today = licks_created_today + 1, last_reset_day = CASE WHEN excluded.last_reset_day != user_quota.last_reset_day THEN excluded.last_reset_day ELSE user_quota.last_reset_day END").bind(session.user.id, Math.floor(Date.now() / 86400000)).run();
 
   return json({ ok: true, data: { lick: { id: crypto.randomUUID(), title: body.title } } }, 201);
@@ -496,4 +530,207 @@ async function handleUnlikeLick(request: Request, env: Env): Promise<Response> {
     await env.DB.prepare("UPDATE lick SET likes = likes - 1 WHERE id = ?").bind(id).run();
   }
   return json({ ok: true, data: { liked: false, likes: Math.max(0, lick.likes - 1) } });
+}
+
+// ---- Collections: favorites + packs (session-gated, owner-scoped) ----
+
+async function currentUserId(request: Request, env: Env): Promise<string | null> {
+  const auth = getAuth(env, new URL(request.url).origin);
+  const session = await auth.api.getSession({ headers: request.headers });
+  return session?.user.id ?? null;
+}
+
+function jsonError(code: string, message: string, status: number): Response {
+  return json({ ok: false, error: { code, message } }, status);
+}
+
+class Unauthorized extends Error {}
+
+async function withSession(request: Request, env: Env, fn: (userId: string) => Promise<Response>): Promise<Response> {
+  const userId = await currentUserId(request, env);
+  if (!userId) return jsonError("unauthorized", "sign in required", 401);
+  try {
+    return await fn(userId);
+  } catch (e) {
+    if (e instanceof Unauthorized) return jsonError("unauthorized", "sign in required", 401);
+    throw e;
+  }
+}
+
+/** Favorites: list the caller's, newest first, with lick rows joined. */
+async function handleListFavorites(request: Request, env: Env): Promise<Response> {
+  return withSession(request, env, async (userId) => {
+    const { results } = (await env.DB.prepare(
+      `SELECT l.* FROM favorite f JOIN lick l ON l.id = f.lick_id
+       WHERE f.user_id = ? AND l.deleted_at IS NULL
+       ORDER BY f.created_at DESC LIMIT 200`,
+    )
+      .bind(userId)
+      .all()) as { results: LickRow[] };
+    return json({ ok: true, data: { licks: results.map((r) => ({ lick: fromRow(r), likes: r.likes })) } });
+  });
+}
+
+async function handleAddFavorite(request: Request, env: Env): Promise<Response> {
+  return withSession(request, env, async (userId) => {
+    const id = lickIdFrom(request.url);
+    if (!id) return jsonError("invalid_input", "lick id required", 400);
+    // The lick must exist (any visibility: you may favorite your own).
+    const lick = await env.DB.prepare("SELECT id FROM lick WHERE id = ? AND deleted_at IS NULL").bind(id).first<{ id: string }>();
+    if (!lick) return jsonError("not_found", "lick not found", 404);
+    // Idempotent: (user_id, lick_id) is UNIQUE, so a re-favorite is a no-op
+    // and we report the pre-existing row as success rather than a 500.
+    await env.DB.prepare(
+      "INSERT OR IGNORE INTO favorite (id, user_id, lick_id, created_at) VALUES (?, ?, ?, ?)",
+    )
+      .bind(crypto.randomUUID(), userId, id, Date.now())
+      .run();
+    return json({ ok: true, data: { favorited: true } }, 201);
+  });
+}
+
+async function handleRemoveFavorite(request: Request, env: Env): Promise<Response> {
+  return withSession(request, env, async (userId) => {
+    const id = lickIdFrom(request.url);
+    if (!id) return jsonError("invalid_input", "lick id required", 400);
+    const r = await env.DB.prepare("DELETE FROM favorite WHERE user_id = ? AND lick_id = ?").bind(userId, id).run();
+    if ((r as { meta: { changes: number } }).meta.changes === 0) return jsonError("not_found", "not favorited", 404);
+    return json({ ok: true, data: { favorited: false } });
+  });
+}
+
+function lickIdFrom(url: string): string | null {
+  const m = /\/api\/licks\/([^/]+)\/favorite/.exec(new URL(url).pathname);
+  return m?.[1] ? decodeURIComponent(m[1]) : null;
+}
+
+// ---- Packs ----
+
+const PACK_SHORT_ALPHABET = "23456789abcdefghijkmnpqrstuvwxyz"; // no 0/1/o/l
+
+/** Short, unguessable-ish share id (8 chars, unambiguous alphabet). */
+function shortId(): string {
+  const bytes = new Uint8Array(8);
+  crypto.getRandomValues(bytes);
+  return [...bytes].map((b) => PACK_SHORT_ALPHABET[b % PACK_SHORT_ALPHABET.length]).join("");
+}
+
+function packFromRow(row: Record<string, unknown>): Record<string, unknown> {
+  return {
+    id: row.id,
+    ownerId: row.owner_id,
+    title: row.title,
+    description: row.description,
+    visibility: row.visibility,
+    shortId: row.short_id,
+    createdAt: new Date(row.created_at as number).toISOString(),
+    updatedAt: new Date(row.updated_at as number).toISOString(),
+    deletedAt: row.deleted_at ? new Date(row.deleted_at as number).toISOString() : null,
+  };
+}
+
+async function handleListPacks(request: Request, env: Env): Promise<Response> {
+  return withSession(request, env, async (userId) => {
+    const mine = (await env.DB.prepare("SELECT * FROM pack WHERE owner_id = ? ORDER BY updated_at DESC LIMIT 100")
+      .bind(userId)
+      .all()) as { results: Record<string, unknown>[] };
+    return json({ ok: true, data: { packs: (mine.results ?? []).map(packFromRow) } });
+  });
+}
+
+async function handleCreatePack(request: Request, env: Env): Promise<Response> {
+  return withSession(request, env, async (userId) => {
+    const body = (await request.json().catch(() => ({}))) as { title?: string; description?: string; visibility?: string };
+    const title = (body.title ?? "").trim();
+    if (!title || title.length > 120) return jsonError("invalid_input", "title required (<=120 chars)", 400);
+    const visibility = body.visibility === "unlisted" || body.visibility === "public" ? body.visibility : "private";
+    const now = Date.now();
+    const id = crypto.randomUUID();
+    await env.DB.prepare(
+      "INSERT INTO pack (id, owner_id, title, description, visibility, short_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    )
+      .bind(id, userId, title, body.description ?? "", visibility, shortId(), now, now)
+      .run();
+    const row = (await env.DB.prepare("SELECT * FROM pack WHERE id = ?").bind(id).first()) as Record<string, unknown>;
+    return json({ ok: true, data: { pack: packFromRow(row) } }, 201);
+  });
+}
+
+async function handleGetPack(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const id = url.pathname.slice("/api/packs/".length);
+  if (!id) return jsonError("invalid_input", "pack id required", 400);
+  // Public/unlisted packs are readable by anyone sharing the link; private
+  // ones only by their owner (there is no guessing without the session).
+  const row = (await env.DB.prepare("SELECT * FROM pack WHERE id = ? AND deleted_at IS NULL").bind(id).first()) as
+    | Record<string, unknown>
+    | null;
+  if (!row) return jsonError("not_found", "pack not found", 404);
+  const viewer = await currentUserId(request, env);
+  if (row.visibility === "private" && row.owner_id !== viewer) {
+    return jsonError("forbidden", "private pack", 403);
+  }
+  const members = (await env.DB.prepare(
+    `SELECT l.*, pl.position AS pack_position FROM pack_lick pl
+     JOIN lick l ON l.id = pl.lick_id
+     WHERE pl.pack_id = ? AND l.deleted_at IS NULL
+     ORDER BY pl.position ASC LIMIT 200`,
+  )
+    .bind(id)
+    .all()) as { results: LickRow[] };
+  return json({
+    ok: true,
+    data: {
+      pack: packFromRow(row),
+      licks: (members.results ?? []).map((r) => ({ lick: fromRow(r), likes: r.likes })),
+    },
+  });
+}
+
+async function handleAddToPack(request: Request, env: Env): Promise<Response> {
+  return withSession(request, env, async (userId) => {
+    const packId = packIdFrom(request.url);
+    if (!packId) return jsonError("invalid_input", "pack id required", 400);
+    const body = (await request.json().catch(() => ({}))) as { lickId?: string };
+    const lickId = body.lickId?.trim();
+    if (!lickId) return jsonError("invalid_input", "lickId required", 400);
+    const pack = (await env.DB.prepare("SELECT id, owner_id FROM pack WHERE id = ? AND deleted_at IS NULL")
+      .bind(packId)
+      .first()) as { id: string; owner_id: string } | null;
+    if (!pack) return jsonError("not_found", "pack not found", 404);
+    if (pack.owner_id !== userId) return jsonError("forbidden", "not your pack", 403);
+    const lick = await env.DB.prepare("SELECT id FROM lick WHERE id = ? AND deleted_at IS NULL").bind(lickId).first<{ id: string }>();
+    if (!lick) return jsonError("not_found", "lick not found", 404);
+    const next = (await env.DB.prepare("SELECT COALESCE(MAX(position), -1) + 1 AS pos FROM pack_lick WHERE pack_id = ?")
+      .bind(packId)
+      .first<{ pos: number }>()) ?? { pos: 0 };
+    await env.DB.prepare("INSERT OR REPLACE INTO pack_lick (pack_id, lick_id, position) VALUES (?, ?, ?)")
+      .bind(packId, lickId, next.pos)
+      .run();
+    await env.DB.prepare("UPDATE pack SET updated_at = ? WHERE id = ?").bind(Date.now(), packId).run();
+    return json({ ok: true, data: { added: true } }, 201);
+  });
+}
+
+async function handleRemoveFromPack(request: Request, env: Env): Promise<Response> {
+  return withSession(request, env, async (userId) => {
+    const m = /\/api\/packs\/([^/]+)\/licks\/([^/]+)$/.exec(new URL(request.url).pathname);
+    if (!m) return jsonError("invalid_input", "pack and lick ids required", 400);
+    const packId = decodeURIComponent(m[1] as string);
+    const lickId = decodeURIComponent(m[2] as string);
+    const pack = (await env.DB.prepare("SELECT id, owner_id FROM pack WHERE id = ? AND deleted_at IS NULL")
+      .bind(packId)
+      .first()) as { id: string; owner_id: string } | null;
+    if (!pack) return jsonError("not_found", "pack not found", 404);
+    if (pack.owner_id !== userId) return jsonError("forbidden", "not your pack", 403);
+    const r = await env.DB.prepare("DELETE FROM pack_lick WHERE pack_id = ? AND lick_id = ?").bind(packId, lickId).run();
+    await env.DB.prepare("UPDATE pack SET updated_at = ? WHERE id = ?").bind(Date.now(), packId).run();
+    if ((r as { meta: { changes: number } }).meta.changes === 0) return jsonError("not_found", "not in pack", 404);
+    return json({ ok: true, data: { removed: true } });
+  });
+}
+
+function packIdFrom(url: string): string | null {
+  const m = /\/api\/packs\/([^/]+)\/licks/.exec(new URL(url).pathname);
+  return m?.[1] ? decodeURIComponent(m[1]) : null;
 }

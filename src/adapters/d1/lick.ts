@@ -74,7 +74,8 @@ function toRow(lick: Lick): Record<string, unknown> {
   };
 }
 
-function fromRow(row: LickRow): Lick {
+/** D1 snake_case row -> domain Lick (shared with the worker's read path). */
+export function fromRow(row: LickRow): Lick {
   return parseLick({
     id: row.id,
     ownerId: row.owner_id,

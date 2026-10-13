@@ -123,6 +123,41 @@ describe("catalog reads (public, edge-cached per ADR-013)", () => {
   });
 });
 
+describe("catalog reads return domain-shaped licks (not raw D1 rows)", () => {
+  it("a created public lick round-trips through GET /api/licks and /:id", async () => {
+    __resetRateLimitsForTests();
+    const db = env.DB as unknown as Env["DB"];
+    const cookie = await signUpCookie(db, "reader@example.com");
+    const created = await api("/api/licks", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      cookie,
+      body: JSON.stringify(LICK_BODY),
+    });
+    expect(created.status).toBe(201);
+    const lickId = (await db.prepare("SELECT id FROM lick ORDER BY created_at DESC LIMIT 1").first<{ id: string }>())!.id;
+
+    // The regression this guards: reading a row used to hand D1 snake_case
+    // straight to parseLick, so any non-empty catalog 500'd.
+    const listed = await api("/api/licks?limit=50&rt=1");
+    expect(listed.status).toBe(200);
+    const body = (await listed.json()) as {
+      data: { licks: { lick: { id: string; ownerId: string; contextKey: string; title: string } }[] };
+    };
+    const found = body.data.licks.find((e) => e.lick.id === lickId);
+    expect(found).toBeDefined();
+    expect(found?.lick.title).toBe("Test Lick");
+    // camelCase domain fields, derived signatures present.
+    expect(found?.lick.ownerId).toBeTruthy();
+    expect(found?.lick.contextKey).toBe("m@0:4.7@5:4.M@10:4");
+
+    const one = await api(`/api/licks/${lickId}?rt=2`);
+    expect(one.status).toBe(200);
+    const oneBody = (await one.json()) as { data: { lick: { id: string; ownerId: string } } };
+    expect(oneBody.data.lick.ownerId).toBeTruthy();
+  });
+});
+
 describe("catalog writes are session-gated", () => {
   it("POST /api/licks requires a session (401, never a write)", async () => {
     __resetRateLimitsForTests();
@@ -232,5 +267,96 @@ describe("account deletion removes every row", () => {
     expect(userRow?.n).toBe(0);
     const sessionRow = await db.prepare("SELECT COUNT(*) AS n FROM session WHERE userId = ?").bind(id).first<{ n: number }>();
     expect(sessionRow?.n).toBe(0);
+  });
+});
+
+describe("favorites", () => {
+  it("requires a session; add/list/remove round-trips", async () => {
+    __resetRateLimitsForTests();
+    const db = env.DB as unknown as Env["DB"];
+    const cookie = await signUpCookie(db, "fav@example.com");
+    expect((await api("/api/favorites")).status).toBe(401);
+    // Create a lick to favorite.
+    const created = await api("/api/licks", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      cookie,
+      body: JSON.stringify(LICK_BODY),
+    });
+    expect(created.status).toBe(201);
+    const lickId = (await db.prepare("SELECT id FROM lick ORDER BY created_at DESC LIMIT 1").first<{ id: string }>())!.id;
+
+    const added = await api(`/api/licks/${lickId}/favorite`, { method: "PUT", cookie });
+    expect(added.status).toBe(201);
+    // Idempotent insert: adding twice must not duplicate.
+    await api(`/api/licks/${lickId}/favorite`, { method: "PUT", cookie });
+    const list = (await (await api("/api/favorites", { cookie })).json()) as {
+      data: { licks: { lick: { id: string } }[] };
+    };
+    expect(list.data.licks.filter((e) => e.lick.id === lickId)).toHaveLength(1);
+
+    const removed = await api(`/api/licks/${lickId}/favorite`, { method: "DELETE", cookie });
+    expect(removed.status).toBe(200);
+    const after = (await (await api("/api/favorites", { cookie })).json()) as { data: { licks: unknown[] } };
+    expect(after.data.licks.some((e) => (e as { lick: { id: string } }).lick.id === lickId)).toBe(false);
+    // Removing again 404s (not silently 200).
+    expect((await api(`/api/licks/${lickId}/favorite`, { method: "DELETE", cookie })).status).toBe(404);
+  });
+});
+
+describe("packs", () => {
+  it("create -> add -> read by owner; private pack hidden from another user", async () => {
+    __resetRateLimitsForTests();
+    const db = env.DB as unknown as Env["DB"];
+    const cookieA = await signUpCookie(db, "pack-a@example.com");
+    const cookieB = await signUpCookie(db, "pack-b@example.com");
+    const packRes = await api("/api/packs", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      cookie: cookieA,
+      body: JSON.stringify({ title: "My Blues Pack", visibility: "private" }),
+    });
+    expect(packRes.status).toBe(201);
+    const packId = ((await packRes.json()) as { data: { pack: { id: string } } }).data.pack.id;
+
+    // Create a lick, add to the pack.
+    await api("/api/licks", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      cookie: cookieA,
+      body: JSON.stringify(LICK_BODY),
+    });
+    const lickId = (await db.prepare("SELECT id FROM lick ORDER BY created_at DESC LIMIT 1").first<{ id: string }>())!.id;
+    const addRes = await api(`/api/packs/${packId}/licks`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      cookie: cookieA,
+      body: JSON.stringify({ lickId }),
+    });
+    expect(addRes.status).toBe(201);
+
+    // Owner reads the pack back with the lick.
+    const owned = (await (await api(`/api/packs/${packId}`, { cookie: cookieA })).json()) as {
+      data: { licks: { lick: { id: string } }[] };
+    };
+    expect(owned.data.licks.map((e) => e.lick.id)).toContain(lickId);
+
+    // Another user gets 403 (private).
+    expect((await api(`/api/packs/${packId}`, { cookie: cookieB })).status).toBe(403);
+    // ...and cannot add to it.
+    const foreign = await api(`/api/packs/${packId}/licks`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      cookie: cookieB,
+      body: JSON.stringify({ lickId }),
+    });
+    expect(foreign.status).toBe(403);
+    // ...and cannot remove from it.
+    expect((await api(`/api/packs/${packId}/licks/${lickId}`, { method: "DELETE", cookie: cookieB })).status).toBe(403);
+  });
+  it("packs list requires a session", async () => {
+    __resetRateLimitsForTests();
+    expect((await api("/api/packs")).status).toBe(401);
+    expect((await api("/api/packs", { method: "POST", body: JSON.stringify({ title: "x" }) })).status).toBe(401);
   });
 });
