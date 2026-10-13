@@ -14,6 +14,7 @@ no copied assets/branding, no scraping (link-out + user-provided files only).
 | typecheck | `npm run typecheck` |
 | lint (incl. arch rule) | `npm run lint && npm run lint:deps` |
 | unit tests | `npm run test` |
+| worker+D1 tests (workerd) | `npm run test:worker` |
 | coverage | `npm run test:coverage` |
 | e2e (needs dev server) | `npm run test:e2e` |
 | build + budget + docs-check | `npm run build && npm run budget && npm run docs:check` |

@@ -1,0 +1,52 @@
+/* LickLab — Tailwind v4 entry. Design tokens (@theme) + base only; component
+   styles are utility classes (shared class sets live in primitives.ts). */
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #0b0b0f;
+  --color-surface: #14141b;
+  --color-surface-2: #1c1c26;
+  --color-surface-3: #242430;
+  --color-line: #2b2b38;
+  --color-cream: #ece7dd;
+  --color-dim: #9d978a;
+  --color-gold: #e0a93e;
+  --color-gold-hi: #eeb54a;
+  --color-gold-dim: #b78a34;
+  --color-ink: #14100a;
+  --color-danger: #d07070;
+  --color-danger-bg: #2a1a1a;
+  --color-danger-line: #4a2e2e;
+  --color-paper: #f6f1e6;
+  --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-serif: Georgia, "Times New Roman", serif;
+  --font-mono: ui-monospace, Menlo, Consolas, monospace;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-cream);
+  font-family: var(--font-sans);
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+::selection {
+  background: var(--color-gold);
+  color: var(--color-ink);
+}
+
+dialog {
+  padding: 0;
+  background: transparent;
+  border: none;
+}
+dialog::backdrop {
+  background: rgb(0 0 0 / 0.7);
+}

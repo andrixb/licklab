@@ -21,6 +21,10 @@ Every query scoped by `owner_id`, index starts with `owner_id`.
   deleted_at)` + `idx_m0_ping_owner_updated`. Proves migration pipeline.
 - M1 — no D1 changes. Local Dexie store v1 (`licklab-<namespace>`, compound
   key `[ownerId+id]`, full-Lick JSON + filter columns + tombstones).
+- `0002_auth.sql` — accounts milestone: Better Auth tables (`user`, `session`,
+  `account`, `verification`; sqlite shapes, epoch-millis dates, indexed by
+  `userId`/`token`/`identifier`) + `allowed_email` sign-up gate table. Owned
+  by hand, never by ORM codegen.
 
 Budget (rows read/written per sync/day, heavy-use scenario) + restore-from-
 Time-Travel runbook land in M4. Sync-paused-on-limit state required in client.

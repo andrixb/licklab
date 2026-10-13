@@ -20,7 +20,12 @@ export function NotationView({ abc, title }: { abc: string; title: string }): Re
       cancelled = true;
     };
   }, [abc, title]);
-  if (error) return <p role="alert">Notation failed: {error}</p>;
-  if (!svg) return <p aria-label="notation loading">Engraving… (first view loads the notation engine)</p>;
-  return <div aria-label="notation" dangerouslySetInnerHTML={{ __html: svg }} />;
+  if (error)
+    return (
+      <p className="rounded-lg border border-danger-line bg-danger-bg px-3.5 py-2.5 text-danger" role="alert">
+        Notation failed: {error}
+      </p>
+    );
+  if (!svg) return <p className="py-5 italic text-dim" aria-label="notation loading">Engraving… (first view loads the notation engine)</p>;
+  return <div className="rounded-xl bg-paper overflow-x-auto p-3 max-w-full [&_svg]:max-w-full [&_svg]:h-auto" aria-label="notation" dangerouslySetInnerHTML={{ __html: svg }} />;
 }

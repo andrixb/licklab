@@ -21,5 +21,6 @@
     "types": ["vite/client", "node"]
   },
   "references": [],
-  "include": ["src", "tests"]
+  "include": ["src", "tests"],
+  "exclude": ["tests/worker"]
 }

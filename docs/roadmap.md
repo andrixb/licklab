@@ -6,6 +6,7 @@
 - [ ] **M2** — song import (MusicXML/iReal/typed) + Tone.js band engine.
 - [ ] **M3** — harmonic matching + licks-over-song + guide tones + practice modes.
 - [ ] **M4** — D1 API, OAuth accounts, quotas/sync, cross-user isolation proven.
+  _Partial: accounts/auth + cross-user + sign-up gate done; sync + quotas pending._
 - [ ] **M5** — transcription tools (local stretch, A-B loops, YouTube loops).
 - [ ] **M6** — MIDI/MusicXML/JSON export + backing-provider plug.
 

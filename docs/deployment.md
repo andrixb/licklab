@@ -26,7 +26,23 @@ Serve PWA as Workers Static Assets + small Worker for `/api/*` only:
 - Budget script `scripts/budget-check.mjs`: fails if any file > 25 MiB, count >
   18,000, or initial JS > budget (M0: 400 KB; tighten per milestone here).
 
-## How to deploy / roll back / secrets
+## Secrets & auth configuration
+
+Set via `wrangler secret put <NAME>` (or CI secrets for the token itself):
+
+| Name | Purpose |
+|---|---|
+| `BETTER_AUTH_SECRET` | Better Auth session signing (≥32 chars random) |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth (console.cloud.google.com → OAuth consent; redirect URI `https://licklab.licklab.workers.dev/api/auth/oauth2/callback/google`) |
+| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | GitHub OAuth (developer settings → OAuth apps; callback `https://licklab.licklab.workers.dev/api/auth/oauth2/callback/github`) |
+| `OPEN_SIGNUP` | `1` = open registration; unset = allowlist-only |
+| `APP_ORIGIN` | pin origin for cookies/redirects when behind a custom domain |
+
+Sign-up gate while closed: `wrangler d1 execute licklab --remote --command
+"INSERT INTO allowed_email (email, createdAt) VALUES ('you@example.com',
+1760000000000)"`.
+
+## Deploy / roll back / secrets
 
 1. Set `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` in GitHub secrets (local
    deploys use `wrangler login` OAuth instead — no secrets needed).

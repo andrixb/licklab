@@ -17,6 +17,7 @@ jobs:
       - run: npm run lint
       - run: npm run lint:deps
       - run: npm run test
+      - run: npm run test:worker
       - run: npm run build
       - run: npm run budget
       - run: npm run docs:check

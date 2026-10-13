@@ -1,2 +1,8 @@
 # Copy to .dev.vars (gitignored) for local `wrangler dev`. Never commit real secrets.
-# CLOUDFLARE_ACCOUNT_ID=
+# BETTER_AUTH_SECRET=generate: node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
+# GOOGLE_CLIENT_ID=
+# GOOGLE_CLIENT_SECRET=
+# GITHUB_CLIENT_ID=
+# GITHUB_CLIENT_SECRET=
+# OPEN_SIGNUP=1
+# APP_ORIGIN=http://localhost:5173

@@ -4,12 +4,14 @@ import { parseChordSymbol } from "../domain/chords.js";
 import type { Lick } from "../domain/lick.js";
 import { fitBassRange, transposeChordSymbol, transposeLick, transposeRoot } from "../domain/transpose.js";
 import { lickLab } from "./composition.js";
+import { btn, btnGhost, tag } from "./primitives.js";
 import { NotationView } from "./NotationView.js";
 
 type View = "concert" | "Bb" | "Eb" | "bass";
 
 const VIEW_SHIFT: Record<View, number> = { concert: 0, Bb: 2, Eb: 9, bass: 0 };
 const VIEW_CLEF: Record<View, "treble" | "bass"> = { concert: "treble", Bb: "treble", Eb: "treble", bass: "bass" };
+const VIEW_LABEL: Record<View, string> = { concert: "C (concert)", Bb: "for Bb", Eb: "for Eb", bass: "Bass clef" };
 
 export function LickDetailView({ id, onBack }: { id: string; onBack: () => void }): React.JSX.Element {
   const [lick, setLick] = React.useState<Lick | null>(null);
@@ -27,34 +29,46 @@ export function LickDetailView({ id, onBack }: { id: string; onBack: () => void 
     let notes = transposeLick(lick, root);
     if (view === "bass") notes = fitBassRange(notes);
     const abc = soundingToAbc(notes, { title: lick.title, clef: VIEW_CLEF[view] });
-    const chordLabel =
-      shift === 0
-        ? lick.harmonicContext.chords.map((c) => c.symbol).join(" | ")
-        : `${lick.harmonicContext.chords.map((c) => transposeChordSymbol(c.symbol, shift)).join(" | ")} (concert ${lick.harmonicContext.chords.map((c) => c.symbol).join(" | ")})`;
-    return { abc, chordLabel };
+    const chordLabel = lick.harmonicContext.chords.map((c) => c.symbol).join(" → ");
+    const displayLabel =
+      shift === 0 ? chordLabel : `${lick.harmonicContext.chords.map((c) => transposeChordSymbol(c.symbol, shift)).join(" → ")} (concert ${chordLabel})`;
+    return { abc, displayLabel };
   }, [lick, view]);
 
-  if (!lick) return <p>Loading…</p>;
+  if (!lick) return <p className="py-5 italic text-dim">Loading…</p>;
   return (
     <article aria-label="lick detail">
-      <button type="button" onClick={onBack}>
+      <button type="button" className={btnGhost} onClick={onBack}>
         ← Library
       </button>
-      <h2>{lick.title}</h2>
-      <p>
-        {rendered?.chordLabel} · {lick.harmonicContext.function} · key {lick.harmonicContext.originalKey} · ★{lick.difficulty}
+      <h2 className="font-serif text-[1.7rem] mt-2 mb-0.5">{lick.title}</h2>
+      <p className="font-semibold text-gold tracking-wide">{rendered?.displayLabel}</p>
+      <p className="text-dim text-sm">
+        {lick.harmonicContext.function} · key {lick.harmonicContext.originalKey} · {"★".repeat(lick.difficulty)}
+        {lick.source.artist ? ` · ${lick.source.artist}` : ""}
+        {lick.source.track ? ` — ${lick.source.track}` : ""}
+        {lick.source.year ? ` (${lick.source.year})` : ""}
       </p>
-      {lick.source.artist && (
+      {lick.tags.length > 0 && (
         <p>
-          {lick.source.artist} {lick.source.instrument && `(${lick.source.instrument})`} {lick.source.track && `— ${lick.source.track}`}
+          {lick.tags.map((t) => (
+            <span key={t} className={tag}>
+              {t}
+            </span>
+          ))}
         </p>
       )}
-      {lick.tags.length > 0 && <p>Tags: {lick.tags.join(", ")}</p>}
-      {lick.notes && <p>{lick.notes}</p>}
-      <div role="group" aria-label="Transposition view">
+      {lick.notes && <p className="text-dim text-sm">{lick.notes}</p>}
+      <div className="my-4 flex flex-wrap gap-2" role="group" aria-label="Transposition view">
         {(["concert", "Bb", "Eb", "bass"] as const).map((v) => (
-          <button key={v} type="button" aria-pressed={view === v} onClick={() => setView(v)}>
-            {v === "concert" ? "C (concert)" : v === "bass" ? "Bass clef" : `for ${v}`}
+          <button
+            key={v}
+            type="button"
+            aria-pressed={view === v}
+            className={view === v ? `${btn} border-gold bg-gold text-ink font-semibold` : btn}
+            onClick={() => setView(v)}
+          >
+            {VIEW_LABEL[v]}
           </button>
         ))}
       </div>
