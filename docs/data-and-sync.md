@@ -25,13 +25,10 @@ Every query scoped by `owner_id`, index starts with `owner_id`.
   `account`, `verification`; sqlite shapes, epoch-millis dates, indexed by
   `userId`/`token`/`identifier`) + `allowed_email` sign-up gate table. Owned
   by hand, never by ORM codegen.
-- M2 (Lick schema v2, ADR-011) — **no SQL change**: v2 adds derived
-  signatures + visibility/license/moderationState inside the Lick JSON.
-  Dexie row shape and store indexes are unchanged; v1 rows normalize to v2
-  on read (`parseLick`), first write persists v2. JSON exports carry
-  `schemaVersion: 2`. Catalog tables (`lick`, `like`, `tag`, `favorite`,
-  `pack`, `report`, `progression`) land as `0003_catalog.sql` in M4 with
-  index + EXPLAIN QUERY PLAN tests.
+- `0003_catalog.sql` — M4 community catalog: `lick` (with signatures, visibility,
+  license, moderation), `tag`/`lick_tag`, `lick_like`, `favorite`, `pack`/`pack_lick`,
+  `report`, `progression`, `user_quota`, `moderation_log`. All indexed for the
+  catalog read path and owner-scoped queries. `lick` schemaVersion 2.
 
 Budget (rows read/written per sync/day, heavy-use scenario) + restore-from-
 Time-Travel runbook land in M4. Sync-paused-on-limit state required in client.

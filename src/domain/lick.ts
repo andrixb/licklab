@@ -94,6 +94,7 @@ export interface Lick {
   readonly tags: readonly string[];
   readonly difficulty: 1 | 2 | 3 | 4 | 5;
   readonly notes: string;
+  readonly likes: number;
   readonly ownerId: string;
   readonly createdAt: string;
   readonly updatedAt: string;
@@ -241,6 +242,7 @@ export function parseLick(input: unknown): Lick {
     createdAt,
     updatedAt,
     deletedAt,
+    likes: typeof input.likes === "number" ? input.likes : 0,
     schemaVersion: LICK_SCHEMA_VERSION,
   };
 }
