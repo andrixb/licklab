@@ -49,8 +49,9 @@ Dependencies point **inward only**, enforced by `eslint-plugin-boundaries`
 
 - TS strict (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`).
   No `any` without justification. Tests colocated (`*.test.ts`).
-- New source files carry the short GPL header (`Copyright (C) 2026 LickLab
-  contributors … GPL-3.0-or-later`). Never add GPL-2.0-only deps (see ADR-009).
+- New source files carry the short GPL header (`Copyright (C) 2026 Andrea
+  Baldo … GPL-3.0-or-later`; owner is the sole copyright holder per LICENSE).
+  Never add GPL-2.0-only deps (see ADR-009).
 - Versioned schemas (local/D1/JSON export) + `migrations/*.sql` + changelog in
   `docs/data-and-sync.md`. JSON export carries `schemaVersion`.
 - Every significant decision → short ADR in `docs/adr/` + line in `index.md`.

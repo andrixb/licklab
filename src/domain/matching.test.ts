@@ -1,4 +1,4 @@
-// Copyright (C) 2026 LickLab contributors
+// Copyright (C) 2026 Andrea Baldo
 // SPDX-License-Identifier: GPL-3.0-or-later — see LICENSE; full text:
 // https://www.gnu.org/licenses/gpl-3.0.html (no warranty)
 
