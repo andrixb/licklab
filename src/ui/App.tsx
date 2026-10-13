@@ -4,6 +4,7 @@
 
 import React from "react";
 import { auth, bindUser, lickLab } from "./composition.js";
+import { AttributionPage } from "./AttributionPage.js";
 import { LibraryView } from "./LibraryView.js";
 import { LickDetailView } from "./LickDetailView.js";
 import { NewLickView } from "./NewLickView.js";
@@ -69,6 +70,8 @@ export function App(): React.JSX.Element {
         <React.Suspense fallback={<p className="py-5 italic text-dim">Loading workspace…</p>}>
           <WorkspaceView key={`${route.preset ?? ""}|${route.chords ?? ""}`} seed={route} />
         </React.Suspense>
+      ) : route.view === "attribution" ? (
+        <AttributionPage />
       ) : (
         <LibraryView key={libraryKey} onOpen={(id) => go({ view: "detail", id })} onNew={() => go({ view: "new" })} />
       )}
@@ -79,7 +82,10 @@ export function App(): React.JSX.Element {
           <a href="https://realbook.site/" rel="noreferrer">
             realbook.site
           </a>{" "}
-          (link-out only).
+          (link-out only).{" "}
+          <a href="/attribution" className={btnLink} style={{ marginLeft: "1rem" }}>
+            Sample Attributions
+          </a>
         </p>
       </footer>
     </div>

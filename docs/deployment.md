@@ -24,8 +24,9 @@ Serve PWA as Workers Static Assets + small Worker for `/api/*` only:
   D1 binding, so previews must not write test data once real tables land (M4
   re-establishes isolation if needed).
 - Budget script `scripts/budget-check.mjs`: fails if any file > 25 MiB, count >
-  18,000, or initial JS > budget (M0: 400 KB; M3 at 375 KB — new screens must
-  stay lazy-loaded, audio/notation/samples are lazy chunks by design).
+  18,000, or initial JS > budget (M0: 400 KB; M3 at 375 KB; M3.5 at 379 KB —
+  samples are runtime-cached, not in initial payload; new screens must stay
+  lazy-loaded, audio/notation/samples are lazy chunks by design).
 
 ## Secrets & auth configuration
 

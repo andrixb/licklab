@@ -19,3 +19,4 @@
 | [ADR-015](adr-015-default-license-ccby4.md) | Default lick license: CC BY 4.0 | Proposed (legal review) |
 | [ADR-016](adr-016-own-theory-primitives.md) | Own theory primitives (no Tonal) | Accepted |
 | [ADR-017](adr-017-band-engine-tone.md) | Band engine: Tone lazy, pure timing core, synths first | Accepted |
+| [ADR-018](adr-018-sample-packs.md) | Sample packs for band engine (M3.5) | Accepted |

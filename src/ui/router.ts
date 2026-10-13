@@ -11,7 +11,8 @@ export type Route =
   | { view: "library" }
   | { view: "detail"; id: string }
   | { view: "new" }
-  | { view: "play"; preset?: string; chords?: string };
+  | { view: "play"; preset?: string; chords?: string }
+  | { view: "attribution" };
 
 export function parseRoute(pathname: string, search: string): Route {
   if (pathname.startsWith("/lick/")) return { view: "detail", id: decodeURIComponent(pathname.slice("/lick/".length)) };
@@ -26,6 +27,7 @@ export function parseRoute(pathname: string, search: string): Route {
       ...(chords ? { chords } : {}),
     };
   }
+  if (pathname === "/attribution") return { view: "attribution" };
   return { view: "library" };
 }
 
@@ -44,6 +46,8 @@ export function routeToUrl(r: Route): string {
       const s = q.toString();
       return s ? `/play?${s}` : "/play";
     }
+    case "attribution":
+      return "/attribution";
   }
 }
 
