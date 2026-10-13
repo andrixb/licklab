@@ -156,7 +156,9 @@ export const lickLab = {
   renderNotation: (abc: string, opts?: { title?: string }): Promise<string> => renderer.renderAbcToSvg(abc, opts),
   ensureSeeded: async (): Promise<void> => {
     const owner = currentUser?.id ?? LOCAL_OWNER;
-    if ((await current.repo.list(owner)).length > 0) return;
+    // Example licks are upserted (not skipped when the library is non-empty):
+    // stable ids make this idempotent AND self-correcting — an old copy saved
+    // with pre-fix degrees is refreshed on next load.
     let n = 0;
     for (const seed of SEED_LICKS) {
       n += 1;

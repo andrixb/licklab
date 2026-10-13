@@ -10,12 +10,15 @@ import type { SaveLickInput } from "./licks.js";
 export const SEED_LICKS: readonly SaveLickInput[] = [
   {
     title: "Walkdown to Five (example)",
+    // Descending chromatic walkdown: D4 C#4 B3 Bb3 A3 over Dm7 → G7.
+    // Degrees are signed: `semitones` may be negative (down a semitone from
+    // the root); `steps` carries the descent below the root letter.
     pattern: [
       { steps: 0, semitones: 0, octaveOffset: 0, startBeat: 0, durationBeats: 1 },
-      { steps: -1, semitones: 11, octaveOffset: 0, startBeat: 1, durationBeats: 1 },
-      { steps: -2, semitones: 9, octaveOffset: 0, startBeat: 2, durationBeats: 1 },
-      { steps: -2, semitones: 8, octaveOffset: 0, startBeat: 3, durationBeats: 1 },
-      { steps: -3, semitones: 7, octaveOffset: 0, startBeat: 4, durationBeats: 2 },
+      { steps: -1, semitones: -1, octaveOffset: 0, startBeat: 1, durationBeats: 1 },
+      { steps: -2, semitones: -3, octaveOffset: 0, startBeat: 2, durationBeats: 1 },
+      { steps: -2, semitones: -4, octaveOffset: 0, startBeat: 3, durationBeats: 1 },
+      { steps: -3, semitones: -5, octaveOffset: 0, startBeat: 4, durationBeats: 2 },
     ],
     harmonicContext: {
       chords: [

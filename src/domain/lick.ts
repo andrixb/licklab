@@ -143,8 +143,11 @@ export function parseLick(input: unknown): Lick {
     if (!isRecord(n)) fail(`pattern[${i}] must be an object`);
     const stepsRaw = reqNumber(n.steps, `pattern[${i}].steps`, -14, 21, true);
     const semisRaw = reqNumber(n.semitones, `pattern[${i}].semitones`, -24, 36, true);
-    // Canonical form: semitones in 0..11, octaves carried by steps.
-    const carry = Math.floor(semisRaw / 12);
+    // Canonical form: whole octaves carried into `steps`. Only wrap when the
+    // semitone span is a full octave — small negatives are descending
+    // chromatic degrees ({steps:-1, semis:-1} = C# below D) and must survive,
+    // or the wrapped {-8, 11} becomes a different pitch.
+    const carry = semisRaw >= 12 || semisRaw <= -12 ? Math.floor(semisRaw / 12) : 0;
     const steps = stepsRaw + carry * 7;
     const semitones = semisRaw - carry * 12;
     if (steps < -14 || steps > 28) fail(`pattern[${i}] out of range after normalization`);

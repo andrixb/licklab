@@ -11,6 +11,8 @@ import {
   parseLick,
   type Lick,
 } from "./lick.js";
+import { transposeLick } from "./transpose.js";
+import { pitchName } from "./pitch.js";
 
 export function validLick(overrides: Partial<Lick> = {}): Lick {
   return parseLick({
@@ -105,5 +107,47 @@ describe("parseLick", () => {
         ).not.toThrow();
       }),
     );
+  });
+});
+
+describe("parseLick descending degrees (regression)", () => {
+  it("keeps small negative semitones (no mod-12 wrap)", () => {
+    // Pre-fix: floor(-1/12) = -1 turned {steps:-1, semis:-1} into {steps:-8, semis:11}
+    // — a different pitch that then crashed spellDegree.
+    const lick = validLick({
+      pattern: [{ steps: -1, semitones: -1, octaveOffset: 0, startBeat: 0, durationBeats: 1 }],
+    });
+    expect(lick.pattern[0]).toMatchObject({ steps: -1, semitones: -1 });
+  });
+  it("still carries full octaves (canonical form preserved)", () => {
+    const lick = validLick({
+      pattern: [{ steps: 0, semitones: 14, octaveOffset: 0, startBeat: 0, durationBeats: 1 }],
+    });
+    expect(lick.pattern[0]).toMatchObject({ steps: 7, semitones: 2 });
+  });
+  it("descending chromatic walkdown transposes without throwing", () => {
+    const lick = validLick({
+      pattern: [
+        { steps: 0, semitones: 0, octaveOffset: 0, startBeat: 0, durationBeats: 1 },
+        { steps: -1, semitones: -1, octaveOffset: 0, startBeat: 1, durationBeats: 1 },
+        { steps: -2, semitones: -3, octaveOffset: 0, startBeat: 2, durationBeats: 1 },
+        { steps: -2, semitones: -4, octaveOffset: 0, startBeat: 3, durationBeats: 1 },
+        { steps: -3, semitones: -5, octaveOffset: 0, startBeat: 4, durationBeats: 2 },
+      ],
+      harmonicContext: {
+        chords: [
+          { symbol: "Dm7", beats: 4 },
+          { symbol: "G7", beats: 4 },
+        ],
+        originalKey: "C",
+        function: "ii-V-I major",
+      },
+    });
+    // property-ish: transposes cleanly to every root spelling
+    for (const letter of ["C", "D", "E", "F", "G", "A", "B"] as const) {
+      expect(() => transposeLick(lick, { letter, accidental: 0, octave: 4 })).not.toThrow();
+    }
+    const first = transposeLick(lick, { letter: "D", accidental: 0, octave: 4 });
+    expect(first.map((n) => `${pitchName(n.pitch)}${n.pitch.octave}`)).toEqual(["D4", "C#4", "B3", "Bb3", "A3"]);
   });
 });

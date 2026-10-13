@@ -1,8 +1,10 @@
 # Domain glossary + data model
 
-- **Degree**: diatonic steps + semitones above a chord root (canonical:
-  semitones 0..11, octaves carried by steps). Round-trips degree→pitch→degree
-  across all 12 keys; transposition preserves semitone shape everywhere.
+- **Degree**: diatonic steps + semitones above a chord root. Canonical: whole
+  octaves carried in `steps`, small negative semitones preserved (a
+  descending chromatic degree is `{steps:-1, semitones:-1}`, NOT `{-1, 11}` —
+  the mod-12 wrap changes the pitch and is not spellable). Round-trips
+  degree→pitch→degree across all 12 keys; transposition preserves the shape.
 - **Enharmonic spelling**: derived from scale degrees, never pc lookup —
   Eb°7 spells Eb Gb Bbb Dbb (not D#°7); Db+2 → Eb (not D#); C+2 → D (not Cx).
 - **Chord symbol**: root (spelling kept) + core quality (maj7/maj6/min7/min6/

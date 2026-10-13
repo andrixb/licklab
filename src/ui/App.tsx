@@ -5,6 +5,7 @@
 import React from "react";
 import { auth, bindUser, lickLab } from "./composition.js";
 import { AttributionPage } from "./AttributionPage.js";
+import { ErrorBoundary } from "./ErrorBoundary.js";
 import { LibraryView } from "./LibraryView.js";
 import { LickDetailView } from "./LickDetailView.js";
 import { NewLickView } from "./NewLickView.js";
@@ -63,7 +64,9 @@ export function App(): React.JSX.Element {
       {!ready ? (
         <p className="py-5 italic text-dim">Loading your lick library…</p>
       ) : route.view === "detail" ? (
-        <LickDetailView id={route.id} onBack={() => go({ view: "library" })} />
+        <ErrorBoundary label="lick">
+          <LickDetailView id={route.id} onBack={() => go({ view: "library" })} />
+        </ErrorBoundary>
       ) : route.view === "new" ? (
         <NewLickView onSaved={(id) => go({ view: "detail", id })} onCancel={() => go({ view: "library" })} />
       ) : route.view === "play" ? (

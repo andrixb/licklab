@@ -97,3 +97,21 @@ describe("parsePitchName", () => {
 });
 
 export type { NoteLetter };
+
+describe("degree spelling robustness (regression)", () => {
+  it("spells descending chromatic degrees (walkdown seed)", () => {
+    // {steps:-1, semis:-1} from D4 is C#4 — one semitone BELOW the root.
+    expect(spellDegree({ letter: "D", accidental: 0, octave: 4 }, { steps: -1, semitones: -1 })).toEqual({
+      letter: "C",
+      accidental: 1,
+      octave: 4,
+    });
+    // {steps:-2, semis:-3} from D4 is B3.
+    expect(pitchName(spellDegree({ letter: "D", accidental: 0, octave: 4 }, { steps: -2, semitones: -3 }))).toBe("B");
+  });
+  it("throws (not silently mis-spells) on non-canonical wrapped degrees", () => {
+    // {-1, 11} mixes a negative step with a high semitone: two different
+    // octaves are implied. parseLick canonicalizes so this never reaches here.
+    expect(() => spellDegree({ letter: "D", accidental: 0, octave: 4 }, { steps: -1, semitones: 11 })).toThrow();
+  });
+});

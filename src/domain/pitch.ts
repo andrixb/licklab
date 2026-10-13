@@ -56,6 +56,10 @@ export interface DegreeOffset {
  * Spell the pitch `semitones` above `root`, using the letter `steps` above
  * the root letter. The accidental is forced by the pitch difference, so
  * diminished/augmented qualities spell correctly (Bbb, Dbb, Ax, ...).
+ *
+ * Note: `steps` and `semitones` must imply the SAME octave — degrees authored
+ * with mod-12 semitones and negative steps (e.g. {-1, 11}) are not canonical
+ * and throw. `parseLick` canonicalizes pattern degrees on input.
  */
 export function spellDegree(root: SpelledPitch, degree: DegreeOffset): SpelledPitch {
   const rootIdx = letterIndex(root.letter);
