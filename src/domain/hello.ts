@@ -3,7 +3,7 @@
 // https://www.gnu.org/licenses/gpl-3.0.html (no warranty)
 
 // domain: pure TypeScript. No imports from React, Tone, Verovio, Dexie, D1, DOM.
-// M0 placeholder proves the layer + tests; real pitch/chord/lick model lands in M1.
+// M0 placeholder (hello/SCHEMA_VERSION) kept for its characterization test.
 
 export const SCHEMA_VERSION = 1;
 
@@ -13,7 +13,5 @@ export function helloDomain(name: string): string {
   return `hello ${clean}`;
 }
 
-/** Last-write-wins per record (sync rule). Pure + unit-tested. M4 expands to full entities. */
-export function lastWriteWins<T extends { updatedAt: string }>(a: T, b: T): T {
-  return a.updatedAt >= b.updatedAt ? a : b;
-}
+/** LWW moved to domain/sync.ts (real rules + property tests); re-exported for compatibility. */
+export { lastWriteWins } from "./sync.js";

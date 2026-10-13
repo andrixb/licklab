@@ -29,6 +29,12 @@ Every query scoped by `owner_id`, index starts with `owner_id`.
   license, moderation), `tag`/`lick_tag`, `lick_like`, `favorite`, `pack`/`pack_lick`,
   `report`, `progression`, `user_quota`, `moderation_log`. All indexed for the
   catalog read path and owner-scoped queries. `lick` schemaVersion 2.
+- `0004_sync_isolation.sql` — M4 sync isolation: composite primary keys `(id,
+  owner_id)` on `lick` so every user has their own ID space; `lick_like`,
+  `favorite`, `pack_lick`, `report`, `moderation_log` gain `lick_owner_id` for
+  ownership checks and cascading deletes. All indexes rebuilt with `owner_id`
+  leading. Sync API (`/api/sync/changes`, `/api/sync/push`) enforces LWW per
+  record with server stamps; cross-user isolation tested.
 
 Budget (rows read/written per sync/day, heavy-use scenario) + restore-from-
 Time-Travel runbook land in M4. Sync-paused-on-limit state required in client.

@@ -9,6 +9,10 @@ import { createAuth, type AppAuth, type AuthEnv } from "./auth.js";
 import type { D1Like } from "./d1-dialect.js";
 import { patternHashOf, signaturesOf } from "../domain/signatures.js";
 import { fromRow } from "../adapters/d1/lick.js";
+import type { SyncKind, SyncRecord } from "../domain/sync.js";
+import { SYNC_KINDS, parseCursor } from "../domain/sync.js";
+import { validatePayload } from "../adapters/d1/sync.js";
+import { D1SyncRepository } from "../adapters/d1/sync.js";
 
 interface LickRow {
   id: string;
@@ -145,6 +149,120 @@ function isSameOrigin(request: Request, appOrigin: string): boolean {
   const site = request.headers.get("sec-fetch-site");
   if (site) return site === "same-origin";
   return false;
+}
+
+// ---- Sync (changes pull + push with LWW) -----
+
+const MAX_PUSH_RECORDS = 40;
+
+function validKind(kind: unknown): kind is SyncKind {
+  return typeof kind === "string" && (SYNC_KINDS as readonly string[]).includes(kind);
+}
+
+class Unauthorized extends Error {}
+
+async function withSession(request: Request, env: Env, fn: (userId: string) => Promise<Response>): Promise<Response> {
+  const userId = await currentUserId(request, env);
+  if (!userId) return jsonError("unauthorized", "sign in required", 401);
+  try {
+    return await fn(userId);
+  } catch (e) {
+    if (e instanceof Unauthorized) return jsonError("unauthorized", "sign in required", 401);
+    throw e;
+  }
+}
+
+/** Pull everything that changed for this owner since a cursor (tombstones included). */
+async function handleSyncChanges(request: Request, env: Env): Promise<Response> {
+  return withSession(request, env, async (userId) => {
+    const url = new URL(request.url);
+    let since: string;
+    try {
+      since = parseCursor(url.searchParams.get("since"));
+    } catch {
+      return jsonError("invalid_input", "invalid since cursor", 400);
+    }
+    if (!(await rateLimit(env.RL_ACCOUNT, `sync:${userId}`, 20))) {
+      return jsonError("rate_limited", "too many sync requests, try later", 429);
+    }
+    const repo = new D1SyncRepository(env.DB);
+    const records = await repo.changesSince(userId, since);
+    const newest = records.length > 0 ? (records.at(-1)?.updatedAt ?? since) : since;
+    return json({ ok: true, data: { changes: records, cursor: newest } });
+  });
+}
+
+/** Push local changes. Server resolves LWW so two devices never fight. */
+async function handleSyncPush(request: Request, env: Env): Promise<Response> {
+  return withSession(request, env, async (userId) => {
+    if (!(await rateLimit(env.RL_ACCOUNT, `sync:${userId}`, 20))) {
+      return jsonError("rate_limited", "too many sync requests, try later", 429);
+    }
+    const body = (await request.json().catch(() => ({}))) as { changes?: unknown };
+    if (!Array.isArray(body.changes)) return jsonError("invalid_input", "changes array required", 400);
+    if (body.changes.length === 0) return json({ ok: true, data: { applied: 0, rejected: [] } });
+    if (body.changes.length > MAX_PUSH_RECORDS) {
+      return jsonError("invalid_input", `too many records in one push (max ${MAX_PUSH_RECORDS})`, 400);
+    }
+
+    const rejected: { index: number; error: string }[] = [];
+    const accepted: SyncRecord[] = [];
+    body.changes.forEach((raw, index) => {
+      const r = raw as Partial<SyncRecord>;
+      if (!validKind(r.kind) || typeof r.id !== "string" || typeof r.updatedAt !== "string" || r.payload === undefined) {
+        rejected.push({ index, error: "kind, id, updatedAt and payload are required" });
+        return;
+      }
+      if (Number.isNaN(Date.parse(r.updatedAt))) {
+        rejected.push({ index, error: "updatedAt must be an ISO date" });
+        return;
+      }
+      if (r.deletedAt !== null && r.deletedAt !== undefined && Number.isNaN(Date.parse(r.deletedAt))) {
+        rejected.push({ index, error: "deletedAt must be an ISO date or null" });
+        return;
+      }
+      const check = validatePayload(r.kind, r.payload);
+      if (!check.ok) {
+        rejected.push({ index, error: check.error });
+        return;
+      }
+      // ownerId is taken from the SESSION, never from the request body.
+      accepted.push({ kind: r.kind, id: r.id, ownerId: userId, updatedAt: r.updatedAt, deletedAt: r.deletedAt ?? null, payload: r.payload });
+    });
+
+    // LWW against the server copy: an older push is acknowledged but dropped.
+    const repo = new D1SyncRepository(env.DB);
+    const stamps = accepted.length > 0 ? await repo.serverStamps(accepted) : new Map<string, string>();
+    const toWrite = accepted.filter((r) => {
+      const existing = stamps.get(`${r.kind}:${r.id}`);
+      return existing === undefined || r.updatedAt > existing;
+    });
+    const dropped = accepted.length - toWrite.length;
+
+    let applied = 0;
+    let conflicts: { index: number; error: string }[] = [];
+    if (toWrite.length > 0) {
+      try {
+        const result = await repo.apply(toWrite);
+        applied = result.written;
+        conflicts = result.conflicts;
+      } catch (e) {
+        return jsonError("storage_error", e instanceof Error ? e.message : "sync write failed", 500);
+      }
+      // A synced lick can change what the public catalog returns.
+      if (toWrite.some((r) => r.kind === "lick")) await invalidatePublicReads();
+    }
+
+    const serverStampsOut: Record<string, string> = {};
+    for (const r of accepted) {
+      const stamp = stamps.get(`${r.kind}:${r.id}`);
+      if (stamp) serverStampsOut[`${r.kind}:${r.id}`] = stamp;
+    }
+    return json({
+      ok: true,
+      data: { applied, rejected: [...rejected, ...conflicts], droppedStale: dropped, serverStamps: serverStampsOut, cursor: new Date().toISOString() },
+    });
+  });
 }
 
 export default {
@@ -291,7 +409,7 @@ export default {
       return handleRemoveFromPack(request, env);
     if (url.pathname.match(/^\/api\/packs\/[^/]+$/) && request.method === "GET") return handleGetPack(request, env);
 
-    // ----- Reports (account required) + moderation (admin only) -----
+// ----- Reports (account required) + moderation (admin only) -----
     if (url.pathname === "/api/reports" && request.method === "POST") return handleCreateReport(request, env);
     if (url.pathname === "/api/admin/reports" && request.method === "GET") return handleAdminReports(request, env);
     if (url.pathname.match(/^\/api\/admin\/reports\/[^/]+\/(dismiss|action)$/) && request.method === "POST")
@@ -301,7 +419,11 @@ export default {
     if (url.pathname.match(/^\/api\/admin\/licks\/[^/]+\/unhide$/) && request.method === "POST")
       return handleAdminUnhideLick(request, env);
 
-if (url.pathname.startsWith("/api/")) {
+    // ----- Sync (changes pull + push with LWW) -----
+    if (url.pathname === "/api/sync/changes" && request.method === "GET") return handleSyncChanges(request, env);
+    if (url.pathname === "/api/sync/push" && request.method === "POST") return handleSyncPush(request, env);
+
+    if (url.pathname.startsWith("/api/")) {
       return json({ ok: false, error: { code: "not_found", message: "unknown api route" } }, 404);
     }
     return env.ASSETS.fetch(request);
@@ -554,19 +676,6 @@ async function currentUserId(request: Request, env: Env): Promise<string | null>
 
 function jsonError(code: string, message: string, status: number): Response {
   return json({ ok: false, error: { code, message } }, status);
-}
-
-class Unauthorized extends Error {}
-
-async function withSession(request: Request, env: Env, fn: (userId: string) => Promise<Response>): Promise<Response> {
-  const userId = await currentUserId(request, env);
-  if (!userId) return jsonError("unauthorized", "sign in required", 401);
-  try {
-    return await fn(userId);
-  } catch (e) {
-    if (e instanceof Unauthorized) return jsonError("unauthorized", "sign in required", 401);
-    throw e;
-  }
 }
 
 /** Favorites: list the caller's, newest first, with lick rows joined. */

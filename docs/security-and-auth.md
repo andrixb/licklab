@@ -24,17 +24,25 @@
   changing `/api/account` DELETE requires matching `Origin` or
   `Sec-Fetch-Site: same-origin` (403 otherwise; e2e-covered by workerd tests).
   CSP in `public/_headers` for asset responses.
-- **Sign-up gate**: `databaseHooks.session.create.before` — session creation
-  (and therefore first login) is blocked unless `OPEN_SIGNUP=1` or the email
-  exists in `allowed_email`. Owner is seeded in `docs/deployment.md`.
-- **Rate limits**: per-isolate sliding windows in the Worker — 30 auth
-  requests/min per IP (`cf-connecting-ip`), 10 account mutations/min.
-  In-memory windows are best-effort (per isolate); revisit alongside the WAF
-  free-tier rule (1 allowed) in M4 sync work, which is also where per-user
-  sync quotas land.
-- **Account deletion**: `DELETE /api/account` hard-deletes the caller's
-  sessions, accounts, and user rows (owner-scoped single-user deletes; workerd
-  test proves user B survives user A's deletion).
+- **Sign-up gate**: `databaseHooks.user.create.before` — account creation is
+  blocked unless `OPEN_SIGNUP=1` or the email exists in `allowed_email`; owner
+  seeded in `docs/deployment.md`. Deliberately on USER creation, not session:
+  `user.create.before` receives the email directly, whereas a session hook has
+  to read the just-inserted user row back mid-OAuth-callback, where D1
+  read-after-write/replica lag returns nothing and the gate silently blocks —
+  which bricked sign-in for already-created accounts. Revoking an existing
+  user's access later is the admin-suspend path, not this gate.
+- **Rate limits**: native Workers `ratelimits` bindings (ADR-014) — `RL_AUTH`
+  30/min/IP, `RL_READ` 120/min/IP on public catalog reads, `RL_ACCOUNT`
+  10/min/IP, and a per-user 5/min on lick creation. In-isolate sliding windows
+  remain only as a fallback for local runtimes without the binding. Per-user
+  daily quotas (`user_quota`: 20 licks/day) back the burst limits.
+- **Account deletion**: `DELETE /api/account` hard-deletes every row the caller
+  owns across all tables — auth (session/account/verification/user), licks,
+  `lick_tag`, likes (given and made), favorites, reports (as reporter and as
+  author), packs + membership, `user_quota`, progressions — then purges cached
+  public reads so removed licks disappear immediately (workerd test asserts
+  zero surviving rows in every table and that user B is unaffected).
 - **Data export**: `GET /api/account/export` (identity + provider links, no
   secrets) plus a client-side full library JSON export.
 - **Never logged**: tokens, session ids, emails. Secrets only via
