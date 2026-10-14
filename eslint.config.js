@@ -12,7 +12,7 @@ const nodeGlobals = {
 };
 
 export default tseslint.config(
-  { ignores: ["dist/**", "node_modules/**", "test-results/**", "playwright-report/**", "scripts/**", "*.js", "*.d.ts"] },
+  { ignores: ["dist/**", "node_modules/**", "test-results/**", "playwright-report/**", "scripts/**", "*.js", "*.d.ts", "*.tmp.mjs"] },
   js.configs.recommended,
   ...tseslint.configs.strict,
   {
