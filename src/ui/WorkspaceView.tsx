@@ -93,7 +93,7 @@ export function WorkspaceView({ seed }: { seed?: WorkspaceSeed | undefined }): R
 
   const guard = (p: Promise<boolean>): void => {
     void p.then((found) => {
-      if (!found) setError("That lick does not fit the current progression.");
+      if (!found) setError(workspace.audioError ?? "That lick does not fit the current progression.");
     });
   };
 

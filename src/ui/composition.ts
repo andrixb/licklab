@@ -202,8 +202,14 @@ function draftProgression(input: string): Progression {
 // Tone (~200KB) loads lazily on FIRST play — keeps the initial payload
 // inside the budget check (docs/deployment.md).
 let enginePromise: Promise<AudioEngine> | null = null;
+let engine: AudioEngine | null = null;
 function getEngine(): Promise<AudioEngine> {
-  if (!enginePromise) enginePromise = import("../adapters/tone/engine.js").then((m) => m.createToneEngine());
+  if (!enginePromise) {
+    enginePromise = import("../adapters/tone/engine.js").then((m) => {
+      engine = m.createToneEngine();
+      return engine;
+    });
+  }
   return enginePromise;
 }
 
@@ -213,6 +219,13 @@ const playListeners = new Set<() => void>();
 async function runPlayback(make: (engine: AudioEngine) => BandPlayback | null): Promise<boolean> {
   currentPlayback?.stop();
   const engine = await getEngine();
+  // Pre-load the samples so a failure is visible immediately rather than the UI
+  // claiming play while nothing sounds. The engine records the reason.
+  try {
+    await engine.unlock();
+  } catch {
+    return false;
+  }
   const playback = make(engine);
   if (!playback) return false;
   currentPlayback = playback;
@@ -254,7 +267,12 @@ export const workspace = {
     for (const l of playListeners) l();
   },
   get isPlaying(): boolean {
-    return currentPlayback !== null;
+    // Read the engine, not local state: a failed sample load must not leave the
+    // UI claiming playback (Tone would stay silent forever otherwise).
+    return currentPlayback !== null && engine?.isPlaying === true;
+  },
+  get audioError(): string | null {
+    return engine?.lastError ?? null;
   },
   onPlayChange(cb: () => void): () => void {
     playListeners.add(cb);

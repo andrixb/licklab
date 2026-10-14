@@ -45,7 +45,7 @@ function sources() {
     const index = String((midi - 21) / 2).padStart(3, "0");
     piano.push({
       src: `Keys/Upright Piano/Player_dyn2_rr1_${index}.wav`,
-      out: `piano/UprightPiano_${noteName(midi)}.wav`,
+      out: `piano/UprightPiano_${safeFileName(noteName(midi))}.wav`,
       trim: 2.2,
       note: noteName(midi),
     });
@@ -72,7 +72,7 @@ function sources() {
     { src: "x", note: "F#2", from: "bass/Contrabass_pizz_D2.wav", semis: 4 },
     { src: "Strings/Solo Contrabass/Pizz/BKCtbss_Pizz_G#1_v1_rr1.wav", note: "G#2" },
     { src: "Strings/Solo Contrabass/Pizz/BKCtbss_Pizz_A1_v1_rr1.wav", note: "A2" },
-  ].map((b) => ({ ...b, out: `bass/Contrabass_pizz_${b.note}.wav`, trim: 1.2 }));
+  ].map((b) => ({ ...b, out: `bass/Contrabass_pizz_${safeFileName(b.note)}.wav`, trim: 1.2 }));
 
   // Virtuosity kit: kick/snare from their CLOSE mics (the "oh" overhead mix has
   // almost no low end and made the kick sound like a bright click), cymbals and
@@ -119,6 +119,15 @@ const midiOf = (note) => {
   if (!m) throw new Error(`cannot parse note: ${note}`);
   return NOTE_TO_PC[m[1]] + 12 * (parseInt(m[2], 10) + 1);
 };
+
+/**
+ * URL-safe filename for a pitch. "#" (sharp) MUST NOT reach a filename: Tone
+ * builds `baseUrl + filename` and the browser treats "#" as a FRAGMENT, so
+ * "/samples/piano/UprightPiano_C#3.wav" requests "/samples/piano/UprightPiano_C"
+ * — the SPA fallback answers 200 text/html, decodeAudioData fails and the voice
+ * is silently silent. Use "s" (sharp) in the file, keep the note name in code.
+ */
+const safeFileName = (note) => note.replace(/#/g, "s");
 
 /**
  * Does the file actually contain the note it is named for? Cross-correlates

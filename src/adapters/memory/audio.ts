@@ -18,11 +18,14 @@ export function createFakeAudioEngine(): FakeAudioEngine {
     played: [] as TimedEvent[][],
     stopCount: 0,
     playing: false,
+    /** Tests can arrange a load failure to check the UI speaks up. */
+    lastError: null as string | null,
     async unlock(): Promise<void> {},
     get isPlaying(): boolean {
       return engine.playing;
     },
     play(events: readonly TimedEvent[], totalSeconds: number): BandPlayback {
+      if (engine.lastError) throw new Error(engine.lastError);
       engine.played.push([...events]);
       engine.playing = true;
       let resolveDone!: () => void;

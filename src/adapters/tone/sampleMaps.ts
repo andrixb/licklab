@@ -38,13 +38,13 @@ const SAMPLE_SUBDIR: Record<SampleVoice, string> = {
 // sounds the note it is named for).
 export const BASS_SAMPLE_MAP = {
   E1: "Contrabass_pizz_E1",
-  "F#1": "Contrabass_pizz_F#1",
+  "F#1": "Contrabass_pizz_Fs1",
   G1: "Contrabass_pizz_G1",
-  "A#1": "Contrabass_pizz_A#1",
+  "A#1": "Contrabass_pizz_As1",
   C2: "Contrabass_pizz_C2",
   D2: "Contrabass_pizz_D2",
-  "F#2": "Contrabass_pizz_F#2",
-  "G#2": "Contrabass_pizz_G#2",
+  "F#2": "Contrabass_pizz_Fs2",
+  "G#2": "Contrabass_pizz_Gs2",
   A2: "Contrabass_pizz_A2",
 } as const;
 
@@ -69,16 +69,16 @@ export const DRUM_SAMPLE_MAP = {
 // reach that high, and repitching by 7 semitones (the old F5 ceiling) was
 // clearly audible.
 export const PIANO_SAMPLE_MAP = {
-  "C#3": "UprightPiano_C#3",
+  "C#3": "UprightPiano_Cs3",
   F3: "UprightPiano_F3",
   A3: "UprightPiano_A3",
-  "C#4": "UprightPiano_C#4",
+  "C#4": "UprightPiano_Cs4",
   F4: "UprightPiano_F4",
   A4: "UprightPiano_A4",
-  "C#5": "UprightPiano_C#5",
+  "C#5": "UprightPiano_Cs5",
   F5: "UprightPiano_F5",
   A5: "UprightPiano_A5",
-  "C#6": "UprightPiano_C#6",
+  "C#6": "UprightPiano_Cs6",
 } as const;
 
 export function sampleMapFor(voice: SampleVoice): Record<string, string> {

@@ -27,6 +27,8 @@ export function createToneEngine(): AudioEngine {
   let tone: ToneModule | null = null;
   let voices: SamplerVoiceSet | null = null;
   let playing = false;
+  /** Set when the samples (or Tone itself) fail, so the UI can speak up. */
+  let loadError: string | null = null;
 
   async function ensureVoices(): Promise<ToneModule> {
     if (!tone) tone = await import("tone");
@@ -35,14 +37,21 @@ export function createToneEngine(): AudioEngine {
       await T.start().catch(() => undefined); // user-gesture unlock; silent fallback if denied
       // Each loader resolves only once every buffer has decoded, so playback
       // can never start half-loaded (Tone throws on an unloaded buffer).
-      const [bass, piano, drums, lick] = await Promise.all([getBassSampler(), getPianoSampler(), getDrumSampler(), getLickSampler()]);
-      voices = { bass, piano, drums, lick };
+      try {
+        const [bass, piano, drums, lick] = await Promise.all([getBassSampler(), getPianoSampler(), getDrumSampler(), getLickSampler()]);
+        voices = { bass, piano, drums, lick };
 
-      // Set default volumes
-      bass.volume.value = -6;
-      piano.volume.value = -6;
-      drums.volume.value = -8;
-      lick.volume.value = -2;
+        // Set default volumes
+        bass.volume.value = -6;
+        piano.volume.value = -6;
+        drums.volume.value = -8;
+        lick.volume.value = -2;
+        loadError = null;
+      } catch (e) {
+        // A sample that 404s, fails to decode, or is missing from the map.
+        loadError = e instanceof Error ? e.message : "audio samples failed to load";
+        throw e;
+      }
     }
     if (!tone) throw new Error("tone unavailable");
     return tone;
@@ -60,21 +69,27 @@ export function createToneEngine(): AudioEngine {
       await ensureVoices();
     },
     get isPlaying(): boolean {
-      return playing;
+      // Playback is only "playing" once the transport is actually running.
+      return playing && !!(tone?.getTransport().state === "started");
+    },
+    get lastError(): string | null {
+      return loadError;
     },
     play(events: readonly TimedEvent[], totalSeconds: number): BandPlayback {
       const instructions = toPlaybackInstructions(events);
       let resolveDone!: () => void;
       const finished = new Promise<void>((r) => (resolveDone = r));
-      playing = true;
       let stopped = false;
       const cleanup = (T: ToneModule): void => {
         T.getTransport().cancel(0);
         T.getTransport().pause();
         playing = false;
       };
+      // `playing` is only raised once the transport actually starts: the UI must
+      // never claim playback while the samples are still loading.
       void ensureVoices()
         .then((T) => {
+          if (stopped) return;
           const tr = T.getTransport();
           tr.cancel(0);
           if (!voices) return;
@@ -86,6 +101,7 @@ export function createToneEngine(): AudioEngine {
           }, totalSeconds + 0.1);
           tr.position = 0;
           void tr.start();
+          playing = true;
         })
         .catch(() => {
           playing = false;

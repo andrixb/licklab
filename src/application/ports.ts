@@ -59,7 +59,10 @@ export interface AudioEngine {
   /** User-gesture unlock (Tone.start) — safe to call repeatedly. */
   unlock(): Promise<void>;
   play(events: readonly TimedEvent[], totalSeconds: number, gainDb?: number): BandPlayback;
+  /** True only while audio is actually being produced (never during loading). */
   readonly isPlaying: boolean;
+  /** Report missing/failed samples so the UI can say so instead of silent play. */
+  readonly lastError: string | null;
 }
 export interface BackingProvider {
   readonly name: "backing-provider";

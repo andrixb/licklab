@@ -154,7 +154,23 @@ describe("sample pack (ADR-018)", () => {
       for (const [note, url] of Object.entries(samplerUrlsFor(voice).urls)) {
         expect(url.startsWith("/"), `${voice}/${note} looks like a path`).toBe(false);
         expect(url).not.toContain("/");
-        expect(url).toMatch(/^[A-Za-z0-9#_.-]+\.wav$/);
+      }
+    }
+  });
+
+  it("built URLs keep the whole filename (no fragment truncation)", () => {
+    // Regression: "#" (sharp) in a filename is a URL FRAGMENT separator. Tone
+    // builds `baseUrl + filename`, so "/samples/piano/UprightPiano_C#3.wav"
+    // requests "/samples/piano/UprightPiano_C" — the SPA fallback answers
+    // 200 text/html, decodeAudioData fails, and the voice is silently mute
+    // while the "#"-free drums still play. Sharp is spelled "s" in filenames.
+    for (const voice of VOICES) {
+      const { urls, baseUrl } = samplerUrlsFor(voice);
+      for (const [note, url] of Object.entries(urls)) {
+        // exactly what the browser resolves when Tone concatenates the two
+        const resolved = new URL(`${baseUrl}${url}`, "https://licklab.invalid");
+        expect(resolved.pathname, `${voice}/${note} truncated: ${resolved.pathname}`).toBe(`${baseUrl}${url}`);
+        expect(resolved.hash, `${voice}/${note} left a fragment`).toBe("");
       }
     }
   });
