@@ -13,10 +13,12 @@
 // not loaded").
 
 import { Sampler } from "tone";
-import { samplerUrlsFor, type SampleVoice } from "./sampleMaps.js";
+import { samplerUrlsFor, type SampleVoice, type BassVariant, type PianoVariant, type DrumVariant } from "./sampleMaps.js";
 
-export type { SampleVoice } from "./sampleMaps.js";
-export { BASS_SAMPLE_MAP, DRUM_SAMPLE_MAP, PIANO_SAMPLE_MAP, SAMPLE_BASE_URL } from "./sampleMaps.js";
+export type { SampleVoice, BassVariant, PianoVariant, DrumVariant } from "./sampleMaps.js";
+export { BASS_SAMPLE_MAP, DRUM_SAMPLE_MAP, PIANO_SAMPLE_MAP, SAMPLE_BASE_URL, 
+         ELECTRIC_PIANO_SAMPLE_MAP, ACOUSTIC_BASS_SAMPLE_MAP, GRAND_PIANO_SAMPLE_MAP,
+         CASIO_RZ1_DRUM_SAMPLE_MAP } from "./sampleMaps.js";
 
 interface SamplerEntry {
   readonly sampler: Sampler;
@@ -24,11 +26,12 @@ interface SamplerEntry {
   readonly ready: Promise<Sampler>;
 }
 
-const loaded = new Map<SampleVoice, SamplerEntry>();
+/** Cache key includes voice + variant */
+const loaded = new Map<string, SamplerEntry>();
 
 /** Build a Sampler plus a promise that settles only once its buffers are ready. */
-function createSampler(voice: SampleVoice): SamplerEntry {
-  const { urls, baseUrl } = samplerUrlsFor(voice);
+function createSampler(voice: SampleVoice, variant?: string): SamplerEntry {
+  const { urls, baseUrl } = samplerUrlsFor(voice, variant);
   let resolve!: (s: Sampler) => void;
   let reject!: (e: Error) => void;
   const ready = new Promise<Sampler>((res, rej) => {
@@ -39,38 +42,39 @@ function createSampler(voice: SampleVoice): SamplerEntry {
     urls,
     baseUrl,
     onload: () => {
-      console.log(`[Tone] ${voice} sampler loaded`);
+      console.log(`[Tone] ${voice} (${variant || 'default'}) sampler loaded`);
       resolve(sampler);
     },
-    onerror: () => reject(new Error(`${voice} samples failed to load from ${baseUrl}`)),
+    onerror: () => reject(new Error(`${voice} (${variant || 'default'}) samples failed to load from ${baseUrl}`)),
   });
   return { sampler, ready };
 }
 
-/** Cached, awaited loader per voice: the first call fetches, later calls share it. */
-function voiceSampler(voice: SampleVoice): Promise<Sampler> {
-  const existing = loaded.get(voice);
+/** Cached, awaited loader per voice+variant: the first call fetches, later calls share it. */
+function voiceSampler(voice: SampleVoice, variant?: string): Promise<Sampler> {
+  const cacheKey = variant ? `${voice}:${variant}` : voice;
+  const existing = loaded.get(cacheKey);
   if (existing) return existing.ready;
-  const entry = createSampler(voice);
-  loaded.set(voice, entry);
+  const entry = createSampler(voice, variant);
+  loaded.set(cacheKey, entry);
   return entry.ready;
 }
 
-export function getBassSampler(): Promise<Sampler> {
-  return voiceSampler("bass");
+export function getBassSampler(variant?: BassVariant): Promise<Sampler> {
+  return voiceSampler("bass", variant);
 }
 
-export function getDrumSampler(): Promise<Sampler> {
-  return voiceSampler("drums");
+export function getDrumSampler(variant?: DrumVariant): Promise<Sampler> {
+  return voiceSampler("drums", variant);
 }
 
-export function getPianoSampler(): Promise<Sampler> {
-  return voiceSampler("piano");
+export function getPianoSampler(variant?: PianoVariant): Promise<Sampler> {
+  return voiceSampler("piano", variant);
 }
 
-/** The lick voice: piano samples — a lick is a melodic line riding the band. */
-export function getLickSampler(): Promise<Sampler> {
-  return voiceSampler("lick");
+/** The lick voice reuses the piano samples; it is a melodic line riding the band. */
+export function getLickSampler(variant?: PianoVariant): Promise<Sampler> {
+  return voiceSampler("lick", variant);
 }
 
 export function disposeSamplers(): void {

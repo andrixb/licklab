@@ -56,6 +56,14 @@ export interface BandPlayback {
   stop(): void;
   finished: Promise<void>;
 }
+/** Comping piano voice: sampled upright, or DX7-style FM electric piano. */
+export type PianoVoice = "upright" | "dx7";
+
+/** Voice variants for different sound palettes (JMove-style). */
+export type BassVariant = "upright" | "acoustic" | "electric";
+export type PianoVariant = "upright" | "dx7" | "electric_piano" | "grand_piano";
+export type DrumVariant = "jazz" | "machine";
+
 /** Per-voice level multipliers (0..1.5); absent voices default to 1. */
 export interface BandLevels {
   readonly bass?: number;
@@ -76,6 +84,14 @@ export interface AudioEngine {
   readonly isPlaying: boolean;
   /** Transport position in seconds (for playhead display; 0 when idle). */
   getPositionSeconds(): number;
+  /** Select the comping piano voice (default "upright"). */
+  setPianoVoice(voice: PianoVoice): void;
+  /** Select the bass sound variant (default "upright"). */
+  setBassVariant(variant: BassVariant): Promise<void>;
+  /** Select the piano sound variant (default "upright"). */
+  setPianoVariant(variant: PianoVariant): Promise<void>;
+  /** Select the drum kit variant (default "jazz"). */
+  setDrumVariant(variant: DrumVariant): Promise<void>;
   /** Report missing/failed samples so the UI can say so instead of silent play. */
   readonly lastError: string | null;
 }

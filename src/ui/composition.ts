@@ -14,7 +14,7 @@ import { createLickFromAbc, type AbcLickInput } from "../application/lickInput.j
 import { findLicksForProgression } from "../application/matching.js";
 import { auditionLick, playChorus, playSoloChorus, playTwelveKeys, type PlayOptions } from "../application/playback.js";
 import { SEED_LICKS } from "../application/seeds.js";
-import type { AudioEngine, BandGenerateOptions, BandLevels, BandPlayback, BandPatternProvider, LickFilter } from "../application/ports.js";
+import type { AudioEngine, BandGenerateOptions, BandLevels, BandPlayback, BandPatternProvider, LickFilter, PianoVoice, BassVariant, PianoVariant, DrumVariant } from "../application/ports.js";
 import { createLocalBandProvider } from "../adapters/local/band.js";
 import type { Lick } from "../domain/lick.js";
 import type { BandPart, BandStyle } from "../domain/band.js";
@@ -28,6 +28,7 @@ export interface WorkspacePlayOpts {
   /** Beats of count-in silence (0/4/8); default 4. */
   readonly countInBeats?: number;
   readonly band?: BandGenerateOptions;
+  readonly pianoVoice?: PianoVoice;
 }
 
 export interface PlaybackInfo {
@@ -333,6 +334,7 @@ export function noteAppUpdateReady(): void {
 
 async function runPlayback(
   make: (engine: AudioEngine) => Promise<{ playback: BandPlayback | null; info: PlaybackInfo | null }>,
+  pianoVoice?: PianoVoice,
 ): Promise<boolean> {
   currentPlayback?.stop();
   let engine: AudioEngine;
@@ -349,6 +351,13 @@ async function runPlayback(
     await engine.unlock();
   } catch {
     return false;
+  }
+  if (pianoVoice) {
+    try {
+      engine.setPianoVoice(pianoVoice);
+    } catch {
+      /* older engines ignore voice selection */
+    }
   }
   const resolved = await make(engine);
   if (!resolved.playback) return false;
@@ -380,7 +389,7 @@ export const workspace = {
       const base = basePlayOptions(style, parts, playOpts);
       const { result: playback, engineLabel } = await withProvider(style, (p) => playChorus(e, bars, { ...base, provider: p }));
       return { playback, info: infoFor(bars, parts.tempoBpm, countIn, engineLabel) };
-    }),
+    }, playOpts?.pianoVoice),
   auditionLick: (input: string, lick: Lick, style: BandStyle, parts: BandPart, playOpts?: WorkspacePlayOpts) =>
     runPlayback(async (e) => {
       const p = draftProgression(input);
@@ -390,7 +399,7 @@ export const workspace = {
         auditionLick(e, p.bars, findSegmentsFor(p), lick, { ...base, provider }),
       );
       return { playback, info: playback ? infoFor(p.bars, parts.tempoBpm, countIn, engineLabel) : null };
-    }),
+    }, playOpts?.pianoVoice),
   playSoloChorus: (
     input: string,
     placements: readonly { lick: Lick; segmentIndex: number }[],
@@ -406,7 +415,9 @@ export const workspace = {
         playSoloChorus(e, p.bars, findSegmentsFor(p), placements, { ...base, provider }),
       );
       return { playback, info: infoFor(p.bars, parts.tempoBpm, countIn, engineLabel) };
-    }),
+    },
+    playOpts?.pianoVoice,
+  ),
   playTwelveKeys: (lick: Lick, style: BandStyle, parts: BandPart, playOpts?: WorkspacePlayOpts) =>
     runPlayback(async (e) => {
       const base = basePlayOptions(style, parts, playOpts);
@@ -419,7 +430,7 @@ export const workspace = {
           ? { totalSeconds: ((totalBeats + 4) * 60) / parts.tempoBpm, countInBeats: 0, totalBeats, tempoBpm: parts.tempoBpm, engineLabel }
           : null,
       };
-    }),
+    }, playOpts?.pianoVoice),
   stop(): void {
     currentPlayback?.stop();
     currentPlayback = null;
@@ -448,6 +459,15 @@ export const workspace = {
   onPlayChange(cb: () => void): () => void {
     playListeners.add(cb);
     return () => playListeners.delete(cb);
+  },
+  async setBassVariant(variant: BassVariant): Promise<void> {
+    if (engine) await engine.setBassVariant(variant);
+  },
+  async setPianoVariant(variant: PianoVariant): Promise<void> {
+    if (engine) await engine.setPianoVariant(variant);
+  },
+  async setDrumVariant(variant: DrumVariant): Promise<void> {
+    if (engine) await engine.setDrumVariant(variant);
   },
 };
 

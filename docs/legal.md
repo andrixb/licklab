@@ -10,8 +10,10 @@
   original (no copied layout/assets from jmove.it.com); JJazzLab (LGPL-2.1)
   concepts only, never code.
 - **Samples**: VSCO 2 CE (CC0, incl. double bass), Virtuosity Drums (CC0),
-  Salamander Grand (CC BY 3.0 — attribution page required). Ship curated
-  subsets only. Verovio LGPL-3.0-or-later (linking disclosure). Time-stretch:
+  Salamander Grand (CC BY 3.0 — attribution page required). **FluidR3_GM** 
+  (MIT — electric piano 2, acoustic bass, grand piano — same source JMove uses).
+  **Casio RZ-1** (CC0 — drum machine kit). Ship curated subsets only.
+  Verovio LGPL-3.0-or-later (linking disclosure). Time-stretch:
   SoundTouch (LGPL) or non-copyleft only — RubberBand is GPL-2.0-only and
   incompatible with GPL-3.0 (see ADR-009).
 - **Weimar Jazz DB (ODbL)**: bulk import = Derivative Database → share-alike +

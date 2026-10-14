@@ -7,6 +7,7 @@ import { BAND_STYLES, type BandStyle } from "../domain/band.js";
 import type { Lick } from "../domain/lick.js";
 import type { RankedMatch } from "../domain/matching.js";
 import type { SegmentMatches } from "../application/matching.js";
+import type { BassVariant, PianoVariant, DrumVariant } from "../application/ports.js";
 import { navigate, shareUrlForChords } from "./router.js";
 import { workspace, type WorkspacePlayOpts } from "./composition.js";
 import { btn, btnGhost, btnPrimary, card, errorText, input, label, tag } from "./primitives.js";
@@ -117,6 +118,9 @@ export function WorkspaceView({ seed }: { seed?: WorkspaceSeed | undefined }): R
   const [tempo, setTempo] = React.useState(120);
   const [parts, setParts] = React.useState({ bass: true, piano: true, drums: true });
   const [levels, setLevels] = React.useState({ bass: 100, piano: 100, drums: 100 });
+  const [bassVariant, setBassVariant] = React.useState<BassVariant>("upright");
+  const [pianoVariant, setPianoVariant] = React.useState<PianoVariant>("upright");
+  const [drumVariant, setDrumVariant] = React.useState<DrumVariant>("jazz");
   const [countIn, setCountIn] = React.useState<0 | 4 | 8>(4);
   const [loop, setLoop] = React.useState(false);
   const [feel, setFeel] = React.useState<FeelState>(FEEL_DEFAULTS.swing);
@@ -160,6 +164,18 @@ export function WorkspaceView({ seed }: { seed?: WorkspaceSeed | undefined }): R
     };
   }, [inputText]);
 
+  React.useEffect(() => {
+    void workspace.setBassVariant(bassVariant);
+  }, [bassVariant]);
+
+  React.useEffect(() => {
+    void workspace.setPianoVariant(pianoVariant);
+  }, [pianoVariant]);
+
+  React.useEffect(() => {
+    void workspace.setDrumVariant(drumVariant);
+  }, [drumVariant]);
+
   const bandPart = { ...parts, tempoBpm: tempo };
   const setF = (key: keyof FeelState) => (v: number) => setFeel((f) => ({ ...f, [key]: v }));
   const setLevel = (key: keyof typeof levels) => (v: number) => setLevels((l) => ({ ...l, [key]: v }));
@@ -168,6 +184,7 @@ export function WorkspaceView({ seed }: { seed?: WorkspaceSeed | undefined }): R
     levels: { bass: levels.bass / 100, piano: levels.piano / 100, drums: levels.drums / 100 },
     loop,
     countInBeats: countIn,
+    pianoVoice: pianoVariant === "dx7" ? "dx7" : "upright",
     band: {
       ...(takeSeed !== null ? { seed: takeSeed } : {}),
       density: feel.density,
@@ -305,7 +322,8 @@ export function WorkspaceView({ seed }: { seed?: WorkspaceSeed | undefined }): R
         )}
       </div>
 
-      <div className={`${card} p-[18px] grid gap-3`} aria-label="Band mixer">
+      <div className="grid gap-5 lg:grid-cols-2">
+        <div className={`${card} p-[18px] grid gap-3`} aria-label="Band mixer">
         <h3 className="font-serif mt-0 mb-0">Mixer</h3>
         {(["bass", "piano", "drums"] as const).map((v) => (
           <div key={v} className="flex flex-wrap items-center gap-2">
@@ -318,6 +336,30 @@ export function WorkspaceView({ seed }: { seed?: WorkspaceSeed | undefined }): R
             </div>
           </div>
         ))}
+        <label className={label}>
+          Bass sound
+          <select className={input} aria-label="Bass sound" value={bassVariant} onChange={(e) => setBassVariant(e.target.value as BassVariant)}>
+            <option value="upright">Upright (sampled)</option>
+            <option value="acoustic">Acoustic Bass</option>
+            <option value="electric">Electric Bass</option>
+          </select>
+        </label>
+        <label className={label}>
+          Piano sound
+          <select className={input} aria-label="Piano sound" value={pianoVariant} onChange={(e) => setPianoVariant(e.target.value as PianoVariant)}>
+            <option value="upright">Upright (sampled)</option>
+            <option value="dx7">DX7 (FM electric)</option>
+            <option value="electric_piano">Electric Piano 2</option>
+            <option value="grand_piano">Grand Piano</option>
+          </select>
+        </label>
+        <label className={label}>
+          Drums
+          <select className={input} aria-label="Drums" value={drumVariant} onChange={(e) => setDrumVariant(e.target.value as DrumVariant)}>
+            <option value="jazz">Jazz Kit (sampled)</option>
+            <option value="machine">Machine Kit (Casio RZ-1)</option>
+          </select>
+        </label>
       </div>
 
       <div className={`${card} p-[18px] grid gap-3`} aria-label="Band feel">
@@ -340,6 +382,7 @@ export function WorkspaceView({ seed }: { seed?: WorkspaceSeed | undefined }): R
         <Slider name="Drums" value={feel.cxDrums} min={0} max={100} step={1} unit="%" onChange={setF("cxDrums")} />
         <Slider name="Piano" value={feel.cxPiano} min={0} max={100} step={1} unit="%" onChange={setF("cxPiano")} />
         <Slider name="Bass" value={feel.cxBass} min={0} max={100} step={1} unit="%" onChange={setF("cxBass")} />
+      </div>
       </div>
 
       {placements.length > 0 && (

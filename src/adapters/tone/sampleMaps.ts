@@ -19,6 +19,11 @@
 /** Sampler voices: pitched instruments plus one drum kit (keyed by GM notes). */
 export type SampleVoice = "bass" | "drums" | "piano" | "lick";
 
+/** Voice variants: multiple sound options per instrument (JMove-style selection). */
+export type BassVariant = "upright" | "acoustic" | "electric";
+export type PianoVariant = "upright" | "dx7" | "electric_piano" | "grand_piano";
+export type DrumVariant = "jazz" | "machine";
+
 /** URL path the app serves samples from (matches public/samples/). */
 export const SAMPLE_BASE_URL = "/samples/";
 
@@ -92,9 +97,81 @@ export const PIANO_SAMPLE_MAP = {
   "C#6": "UprightPiano_Cs6",
 } as const;
 
-export function sampleMapFor(voice: SampleVoice): Record<string, string> {
-  if (voice === "bass") return { ...BASS_SAMPLE_MAP };
-  if (voice === "drums") return { ...DRUM_SAMPLE_MAP };
+// FluidR3 GM electric piano 2 (DX7 sound) - MIT license from FluidR3_GM
+// Full chromatic range A0-C8, every semitone sampled
+export const ELECTRIC_PIANO_SAMPLE_MAP: Record<string, string> = Object.fromEntries(
+  ["A0","Bb0","B0","C1","Db1","D1","Eb1","E1","F1","Gb1","G1","Ab1",
+   "A1","Bb1","B1","C2","Db2","D2","Eb2","E2","F2","Gb2","G2","Ab2",
+   "A2","Bb2","B2","C3","Db3","D3","Eb3","E3","F3","Gb3","G3","Ab3",
+   "A3","Bb3","B3","C4","Db4","D4","Eb4","E4","F4","Gb4","G4","Ab4",
+   "A4","Bb4","B4","C5","Db5","D5","Eb5","E5","F5","Gb5","G5","Ab5",
+   "A5","Bb5","B5","C6","Db6","D6","Eb6","E6","F6","Gb6","G6","Ab6",
+   "A6","Bb6","B6","C7","Db7","D7","Eb7","E7","F7","Gb7","G7","Ab7",
+   "A7","Bb7","B7","C8"].map(n => [n, n])
+);
+
+// FluidR3 GM acoustic bass - MIT license from FluidR3_GM
+export const ACOUSTIC_BASS_SAMPLE_MAP: Record<string, string> = Object.fromEntries(
+  ["C1","Db1","D1","Eb1","E1","F1","Gb1","G1","Ab1","A1","Bb1","B1",
+   "C2","Db2","D2","Eb2","E2","F2","Gb2","G2","Ab2","A2","Bb2","B2",
+   "C3","Db3","D3","Eb3","E3","F3","Gb3","G3","Ab3","A3","Bb3","B3",
+   "C4"].map(n => [n, n])
+);
+
+// FluidR3 GM acoustic grand piano - MIT license from FluidR3_GM
+export const GRAND_PIANO_SAMPLE_MAP: Record<string, string> = Object.fromEntries(
+  ["A0","Bb0","B0","C1","Db1","D1","Eb1","E1","F1","Gb1","G1","Ab1",
+   "A1","Bb1","B1","C2","Db2","D2","Eb2","E2","F2","Gb2","G2","Ab2",
+   "A2","Bb2","B2","C3","Db3","D3","Eb3","E3","F3","Gb3","G3","Ab3",
+   "A3","Bb3","B3","C4","Db4","D4","Eb4","E4","F4","Gb4","G4","Ab4",
+   "A4","Bb4","B4","C5","Db5","D5","Eb5","E5","F5","Gb5","G5","Ab5",
+   "A5","Bb5","B5","C6","Db6","D6","Eb6","E6","F6","Gb6","G6","Ab6",
+   "A6","Bb6","B6","C7","Db7","D7","Eb7","E7","F7","Gb7","G7","Ab7",
+   "A7","Bb7","B7","C8"].map(n => [n, n])
+);
+
+// Casio RZ-1 drum machine samples - CC0 public domain
+export const CASIO_RZ1_DRUM_SAMPLE_MAP = {
+  36: "kick",      // Bass Drum 1
+  35: "kick",      // Acoustic Bass Drum
+  38: "snare",     // Acoustic Snare
+  37: "snare",     // Side Stick (rimshot)
+  40: "snare",     // Electric Snare
+  42: "hihat-closed", // Closed Hi-Hat
+  44: "hihat-closed", // Pedal Hi-Hat
+  46: "hihat-open",   // Open Hi-Hat
+  49: "crash",     // Crash Cymbal 1
+  51: "ride",      // Ride Cymbal 1
+  55: "cowbell",   // Splash Cymbal
+  56: "cowbell",   // Cowbell
+  57: "crash",     // Crash Cymbal 2
+  58: "cowbell",   // Tambourine
+  69: "clave",     // Maracas
+  75: "tom-1",     // Claves
+  43: "tom-3",     // Low Floor Tom
+  45: "tom-2",     // Low Tom
+  47: "tom-1",     // Low-Mid Tom
+  48: "tom-1",     // Hi-Mid Tom
+  50: "tom-1",     // High Tom
+  70: "tom-3",     // Maracas
+} as const;
+
+export function sampleMapFor(voice: SampleVoice, variant?: string): Record<string, string> {
+  if (voice === "bass") {
+    if (variant === "acoustic") return { ...ACOUSTIC_BASS_SAMPLE_MAP };
+    // "upright" (default) or "electric" fall back to VSCO upright for now
+    return { ...BASS_SAMPLE_MAP };
+  }
+  if (voice === "drums") {
+    if (variant === "machine") return { ...CASIO_RZ1_DRUM_SAMPLE_MAP };
+    return { ...DRUM_SAMPLE_MAP };
+  }
+  // Piano variants
+  if (voice === "piano" || voice === "lick") {
+    if (variant === "electric_piano") return { ...ELECTRIC_PIANO_SAMPLE_MAP };
+    if (variant === "grand_piano") return { ...GRAND_PIANO_SAMPLE_MAP };
+    return { ...PIANO_SAMPLE_MAP };
+  }
   return { ...PIANO_SAMPLE_MAP };
 }
 
@@ -106,14 +183,28 @@ export interface SamplerUrls {
 }
 
 /**
- * Tone.Sampler options for a voice: note -> "${filename}.wav" plus the
+ * Tone.Sampler options for a voice: note -> "${filename}.wav" or ".ogg" plus the
  * directory. Filenames only — Tone builds `baseUrl + filename` itself.
  */
-export function samplerUrlsFor(voice: SampleVoice): SamplerUrls {
-  const map = sampleMapFor(voice);
+export function samplerUrlsFor(voice: SampleVoice, variant?: string): SamplerUrls {
+  const map = sampleMapFor(voice, variant);
   const urls: Record<string, string> = {};
-  for (const [note, filename] of Object.entries(map)) urls[note] = `${filename}.wav`;
-  return { urls, baseUrl: `${SAMPLE_BASE_URL}${SAMPLE_SUBDIR[voice]}/` };
+  const isFluidR3 = variant === "electric_piano" || variant === "acoustic" || variant === "grand_piano";
+  const isMachine = variant === "machine";
+  const ext = (isFluidR3 || isMachine) ? ".ogg" : ".wav";
+  for (const [note, filename] of Object.entries(map)) urls[note] = `${filename}${ext}`;
+  
+  // Determine subdirectory based on variant
+  let subdir = SAMPLE_SUBDIR[voice];
+  if (isFluidR3) {
+    if (variant === "electric_piano") subdir = "fluidr3/electric_piano_2";
+    else if (variant === "acoustic") subdir = "fluidr3/acoustic_bass";
+    else if (variant === "grand_piano") subdir = "fluidr3/acoustic_grand_piano";
+  } else if (isMachine) {
+    subdir = "casio-rz1";
+  }
+  
+  return { urls, baseUrl: `${SAMPLE_BASE_URL}${subdir}/` };
 }
 
 /** On-disk directory for a voice (public/samples/<dir>), for tooling/tests. */

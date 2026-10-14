@@ -163,4 +163,17 @@ describe("tone engine routing", () => {
     expect(hit).toHaveLength(1);
     expect(hit[0]!.velocity).toBeLessThan(0.8);
   });
+
+  it("dx7 without an FM voice falls back to the sampler silently", async () => {
+    // The unit Tone mock provides no FMSynth: selecting DX7 must not drop
+    // the note (production builds the FM voice beside the samplers).
+    const { createToneEngine } = await import("../../src/adapters/tone/engine.js");
+    MockSampler.instances = [];
+    transport.scheduled = [];
+    const engine = createToneEngine();
+    engine.setPianoVoice("dx7");
+    const playback = engine.play([timed("piano", 60, 0.5)], 2);
+    await playback.finished;
+    expect(MockSampler.instances.flatMap((s) => s.triggered)).toHaveLength(1);
+  });
 });

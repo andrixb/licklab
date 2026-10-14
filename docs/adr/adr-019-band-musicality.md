@@ -22,11 +22,19 @@ Decision: clean-room upgrade, no copied code/patterns/samples:
    ghost snares, chick hats, ride on-beats forward / off-beats light, comping under
    the bass, lick on top) with ±deterministic humanization; drum durations let the
    ride ring (0.5 s) and keep hats short. Timing grid untouched (timing contract).
-3. `adapters/tone/engine.ts`: Tone-only FX bus (small-room Freeverb send at
+3. `adapters/tone/engine.ts`: Tone-only FX bus (convolver-`Reverb` send at
    per-voice levels + master compressor + safety limiter, no new deps, still
    lazy) with practice-tool balances (bass −8, piano −7 so the harmony reads,
    drums −10, lick −3); guarded fallback to direct wiring so the unit-test
-   Tone mock still passes.
-Consequences: 42 band/audio tests green (7 new), full suite 235 green,
-typecheck/lint(deps)/build/budget/docs-check green, initial JS 384/400 KB —
+   Tone mock still passes. `Freeverb` is banned: since Tone 15 it runs on an
+   AudioWorklet via blob:, which our CSP blocks in production.
+4. **Voice variants**: Multiple sound options per instrument (JMove-style):
+   - Bass: upright (VSCO 2 CE, CC0), acoustic (FluidR3_GM, MIT), electric (FluidR3_GM, MIT)
+   - Piano: upright (VSCO 2 CE, CC0), DX7 (FM synthesis), electric piano (FluidR3_GM, MIT), grand piano (FluidR3_GM, MIT)
+   - Drums: jazz (Virtuosity Drums, CC0), machine (Casio RZ-1, CC0)
+   - Sample maps support variant-specific directories; engine reloads only affected voices on variant change.
+   - FluidR3_GM samples are MIT-licensed (same source JMove uses); Casio RZ-1 is CC0 public domain.
+Consequences: 42 band/audio tests green (7 new), full suite 251 green,
+typecheck/lint(deps)/build/budget/docs-check green, initial JS 386/400 KB —
 musicality improves with zero interface churn (same `BandEvent`/`AudioEngine` port).
+Voice variants enable JMove-style sound selection with legal, high-quality samples.

@@ -30,5 +30,9 @@ Decision:
    Suggestion (separate product), pixel-clone of their screen.
 Consequences: 201KB lazy chunk (initial +2KB, budget 386/400 green);
 use cases async but UI signatures unchanged; domain engine + all its tests
-kept as fallback. Risk accepted: 0-star upstream — exact pin + fallback +
-contract tests (downbeat roots, determinism, gating) contain API churn.
+kept as fallback. jmove ships patterns only (no sounds): the band still
+sounds through our voices (CC0 samplers + FM EP), which is why the engine
+also gained a convolver room (worklet-free for our CSP), a limiter, and a
+DX7-style FM piano voice. Risk accepted: 0-star upstream — exact pin +
+fallback + contract tests (downbeat roots, determinism, gating) contain
+API churn.

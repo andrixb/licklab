@@ -9,10 +9,10 @@
 // sampler's buffers have decoded (guaranteed by the `ready` promises in
 // ./samplers — `Sampler.loaded` is only a boolean, never an awaitable).
 
-import type { AudioEngine, BandPlayback, BandPlayOpts } from "../../application/ports.js";
+import type { AudioEngine, BandPlayback, BandPlayOpts, PianoVoice } from "../../application/ports.js";
 import type { TimedEvent } from "../../domain/band.js";
 import { toPlaybackInstructions, voiceForInstrument, type PlaybackInstruction } from "./schedule.js";
-import { getBassSampler, getDrumSampler, getLickSampler, getPianoSampler } from "./samplers.js";
+import { getBassSampler, getDrumSampler, getLickSampler, getPianoSampler, type BassVariant, type PianoVariant, type DrumVariant } from "./samplers.js";
 
 type ToneModule = typeof import("tone");
 
@@ -23,9 +23,22 @@ interface SamplerVoiceSet {
   lick: InstanceType<ToneModule["Sampler"]>;
 }
 
+type FMSynthVoice = {
+  triggerAttackRelease(note: number, duration: number, when: number, velocity: number): void;
+  volume: { value: number };
+  connect(n: unknown): unknown;
+  toDestination(): unknown;
+};
+
 export function createToneEngine(): AudioEngine {
   let tone: ToneModule | null = null;
   let voices: SamplerVoiceSet | null = null;
+  /** DX7-style FM electric piano (synthesis, no samples). Null until built. */
+  let fmPiano: FMSynthVoice | null = null;
+  let pianoVoice: PianoVoice = "upright";
+  let bassVariant: BassVariant = "upright";
+  let pianoVariant: PianoVariant = "upright";
+  let drumVariant: DrumVariant = "jazz";
   let playing = false;
   /** Set when the samples (or Tone itself) fail, so the UI can speak up. */
   let loadError: string | null = null;
@@ -38,7 +51,12 @@ export function createToneEngine(): AudioEngine {
       // Each loader resolves only once every buffer has decoded, so playback
       // can never start half-loaded (Tone throws on an unloaded buffer).
       try {
-        const [bass, piano, drums, lick] = await Promise.all([getBassSampler(), getPianoSampler(), getDrumSampler(), getLickSampler()]);
+        const [bass, piano, drums, lick] = await Promise.all([
+          getBassSampler(bassVariant), 
+          getPianoSampler(pianoVariant), 
+          getDrumSampler(drumVariant), 
+          getLickSampler(pianoVariant)
+        ]);
         voices = { bass, piano, drums, lick };
 
         // Jazz mix for a practice tool: the harmony must read clearly (piano
@@ -50,32 +68,39 @@ export function createToneEngine(): AudioEngine {
         drums.volume.value = -10;
         lick.volume.value = -3;
 
-        // Room + glue, built from Tone's own effects (no new deps, still lazy).
+        // Room + glue, built from worklet-free Tone effects (no new deps, still
+        // lazy). NOTE: Freeverb is banned here — since Tone 15 it runs on an
+        // AudioWorklet loaded via blob:, which our CSP (script-src 'self')
+        // blocks in production (silent-wet fallback + uncaught AbortError).
+        // Reverb is Convolver-based (no worklet) per Tone's own docstring.
         // Small per-voice sends into a shared room (bass nearly dry, drums
         // wettest) + master compressor + safety limiter so hot choruses
         // (crash + fill + comping) never flat-top. Mocked Tone in unit tests
         // only provides Sampler/start/Transport, so every step is guarded —
         // production gets the bus, tests keep the direct wiring.
-        try {
-          interface FxNode {
-            connect(n: unknown): unknown;
-            toDestination(): unknown;
-          }
-          interface VerbNode extends FxNode {
-            wet: { value: number };
-          }
-          interface GainNode extends FxNode {
-            gain: { value: number };
-          }
+        interface FxNode {
+          connect(n: unknown): unknown;
+          toDestination(): unknown;
+        }
+        interface VerbNode extends FxNode {
+          wet: { value: number };
+          ready: Promise<unknown>;
+        }
+        interface GainNode extends FxNode {
+          gain: { value: number };
+        }
           interface ToneFx {
             Compressor?: new (opts: unknown) => FxNode;
-            Freeverb?: new (opts: unknown) => VerbNode;
+            Reverb?: new (opts: unknown) => VerbNode;
             Limiter?: new (ceiling: number) => FxNode;
             Gain?: new (gain: number) => GainNode;
           }
-          const TAny = T as unknown as ToneFx;
+        const TAny = T as unknown as ToneFx;
+        let busMaster: FxNode | null = null;
+        let busVerb: VerbNode | null = null;
+        try {
           const Comp = TAny.Compressor;
-          const Verb = TAny.Freeverb;
+          const Verb = TAny.Reverb;
           const Lim = TAny.Limiter;
           const Gain = TAny.Gain;
           const samplers = [bass, piano, drums, lick] as unknown as FxNode[];
@@ -88,7 +113,10 @@ export function createToneEngine(): AudioEngine {
           if (canBus) {
             const master = new Comp({ threshold: -18, ratio: 3, attack: 0.01, release: 0.2 });
             const limiter = new Lim(-1.5);
-            const verb = new Verb({ roomSize: 0.45, dampening: 3200 });
+            const verb = new Verb({ decay: 1.8, preDelay: 0.02, wet: 1 });
+            // The IR generates async; no voice may sound through the room
+            // before it exists (empty convolver = silent wet path).
+            await verb.ready;
             if (verb.wet) verb.wet.value = 1;
             // Voice -> master (dry) + voice -> send -> room -> master.
             const sends = [0.08, 0.16, 0.18, 0.14]; // bass, piano, drums, lick
@@ -102,6 +130,8 @@ export function createToneEngine(): AudioEngine {
             (verb as unknown as FxNode).connect(master);
             master.connect(limiter);
             limiter.toDestination();
+            busMaster = master;
+            busVerb = verb;
           } else {
             throw new Error("fx bus unavailable, direct wiring");
           }
@@ -112,6 +142,52 @@ export function createToneEngine(): AudioEngine {
           piano.toDestination();
           drums.toDestination();
           lick.toDestination();
+        }
+
+        // DX7-style FM electric piano: original programming (sine carrier +
+        // sine modulator, bright attack decaying to a mellow sustain — the FM
+        // EP recipe), synthesis so no samples and no worklet nodes. Built once
+        // beside the samplers; setPianoVoice switches at trigger time. NOTE:
+        // the voice-class access stays inside try: strict module mocks
+        // (vitest) throw on unknown export access instead of yielding
+        // undefined, and that failure must fall back, never kill playback.
+        // Polyphonic: comping plays 3-note chords, and a MonoSynth would
+        // steal its own notes and go thin.
+        if (!fmPiano) {
+          try {
+            const voiceClasses = T as unknown as {
+              PolySynth?: new (voice: unknown, opts: unknown) => FMSynthVoice;
+              FMSynth?: unknown;
+            };
+            const Poly = voiceClasses.PolySynth;
+            const FMClass = voiceClasses.FMSynth;
+            if (typeof Poly !== "function" || !FMClass) throw new Error("FM voice unavailable");
+            const fm = new Poly(FMClass, {
+              maxPolyphony: 8,
+              options: {
+                harmonicity: 1,
+                modulationIndex: 16,
+                oscillator: { type: "sine" },
+                envelope: { attack: 0.003, decay: 0.4, sustain: 0.5, release: 1.5 },
+                modulation: { type: "sine" },
+                modulationEnvelope: { attack: 0.001, decay: 0.8, sustain: 0.35, release: 1.0 },
+              },
+            });
+            fm.volume.value = -12;
+            const fmNode = fm as unknown as FxNode;
+            const Gain = TAny.Gain;
+            if (busMaster && busVerb && typeof Gain === "function") {
+              const send = new Gain(0.12);
+              fmNode.connect(busMaster);
+              fmNode.connect(send);
+              send.connect(busVerb);
+            } else {
+              fmNode.toDestination();
+            }
+            fmPiano = fm;
+          } catch {
+            fmPiano = null;
+          }
         }
         loadError = null;
         // Diagnostics only: expose the live graph in dev so audio probes (and
@@ -131,6 +207,15 @@ export function createToneEngine(): AudioEngine {
   }
 
   function triggerSampler(v: SamplerVoiceSet, i: PlaybackInstruction, at: number): void {
+    // DX7 voice: FM electric piano instead of the upright sampler.
+    if (i.instrument === "piano" && pianoVoice === "dx7" && fmPiano) {
+      try {
+        fmPiano.triggerAttackRelease(i.note, i.durationSeconds, at, i.velocity);
+      } catch {
+        /* voice failure must never kill the transport callback */
+      }
+      return;
+    }
     const sampler = v[voiceForInstrument(i.instrument)];
     // Belt and braces: never trigger a voice whose buffers are not ready.
     if (!sampler.loaded) return;
@@ -140,6 +225,44 @@ export function createToneEngine(): AudioEngine {
   return {
     async unlock(): Promise<void> {
       await ensureVoices();
+    },
+    setPianoVoice(voice: PianoVoice): void {
+      pianoVoice = voice;
+    },
+    async setBassVariant(variant: BassVariant): Promise<void> {
+      if (variant === bassVariant || !tone) return;
+      bassVariant = variant;
+      if (voices) {
+        voices.bass.dispose();
+        voices.bass = await getBassSampler(variant);
+        voices.bass.volume.value = -8;
+        voices.bass.toDestination();
+      }
+    },
+    async setPianoVariant(variant: PianoVariant): Promise<void> {
+      if (variant === pianoVariant || !tone) return;
+      pianoVariant = variant;
+      if (voices) {
+        voices.piano.dispose();
+        voices.piano = await getPianoSampler(variant);
+        voices.piano.volume.value = -7;
+        voices.piano.toDestination();
+        // Lick voice reuses piano samples
+        voices.lick.dispose();
+        voices.lick = await getLickSampler(variant);
+        voices.lick.volume.value = -3;
+        voices.lick.toDestination();
+      }
+    },
+    async setDrumVariant(variant: DrumVariant): Promise<void> {
+      if (variant === drumVariant || !tone) return;
+      drumVariant = variant;
+      if (voices) {
+        voices.drums.dispose();
+        voices.drums = await getDrumSampler(variant);
+        voices.drums.volume.value = -10;
+        voices.drums.toDestination();
+      }
     },
     get isPlaying(): boolean {
       // Playback is only "playing" once the transport is actually running.

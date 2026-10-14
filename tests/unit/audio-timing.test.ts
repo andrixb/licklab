@@ -115,4 +115,10 @@ describe("FakeAudioEngine (port contract)", () => {
     expect(engine.isPlaying).toBe(false);
     expect(engine.stopCount).toBe(1);
   });
+  it("stores the piano voice selection", () => {
+    const engine = createFakeAudioEngine();
+    expect(engine.pianoVoice).toBe("upright");
+    engine.setPianoVoice("dx7");
+    expect(engine.pianoVoice).toBe("dx7");
+  });
 });

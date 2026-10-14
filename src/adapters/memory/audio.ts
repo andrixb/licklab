@@ -5,12 +5,16 @@
 // adapters/memory/audio: silent AudioEngine fake (port contract tests, e2e
 // and environments without Web Audio). Records playback instead of sounding.
 
-import type { AudioEngine, BandPlayback } from "../../application/ports.js";
+import type { AudioEngine, BandPlayback, PianoVoice, BassVariant, PianoVariant, DrumVariant } from "../../application/ports.js";
 import type { TimedEvent } from "../../domain/band.js";
 
 export interface FakeAudioEngine extends AudioEngine {
   readonly played: TimedEvent[][];
   readonly stopCount: number;
+  readonly pianoVoice: PianoVoice;
+  readonly bassVariant: BassVariant;
+  readonly pianoVariant: PianoVariant;
+  readonly drumVariant: DrumVariant;
 }
 
 export function createFakeAudioEngine(): FakeAudioEngine {
@@ -18,11 +22,27 @@ export function createFakeAudioEngine(): FakeAudioEngine {
     played: [] as TimedEvent[][],
     stopCount: 0,
     playing: false,
+    pianoVoice: "upright" as PianoVoice,
+    bassVariant: "upright" as BassVariant,
+    pianoVariant: "upright" as PianoVariant,
+    drumVariant: "jazz" as DrumVariant,
     /** Tests can arrange a load failure to check the UI speaks up. */
     lastError: null as string | null,
     async unlock(): Promise<void> {},
     get isPlaying(): boolean {
       return engine.playing;
+    },
+    setPianoVoice(voice: PianoVoice): void {
+      engine.pianoVoice = voice;
+    },
+    async setBassVariant(variant: BassVariant): Promise<void> {
+      engine.bassVariant = variant;
+    },
+    async setPianoVariant(variant: PianoVariant): Promise<void> {
+      engine.pianoVariant = variant;
+    },
+    async setDrumVariant(variant: DrumVariant): Promise<void> {
+      engine.drumVariant = variant;
     },
     getPositionSeconds(): number {
       return 0;
