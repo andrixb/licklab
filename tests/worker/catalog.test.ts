@@ -49,6 +49,15 @@ async function api(path: string, init?: RequestInit & { cookie?: string }): Prom
   return worker.fetch(new Request(`${ORIGIN}${path}`, { ...init, headers }), testEnv());
 }
 
+/** Same as api() but with explicit Origin control (null = header omitted). */
+async function rawApi(path: string, init?: RequestInit & { cookie?: string; origin?: string | null }): Promise<Response> {
+  const headers = new Headers(init?.headers);
+  if (init?.cookie) headers.set("cookie", init.cookie);
+  if (init?.origin === null) headers.delete("origin");
+  else headers.set("origin", init?.origin ?? ORIGIN);
+  return worker.fetch(new Request(`${ORIGIN}${path}`, { ...init, headers }), testEnv());
+}
+
 const LICK_BODY = {
   title: "Test Lick",
   pattern: [
@@ -171,6 +180,74 @@ describe("catalog writes are session-gated", () => {
   it("like/unlike require a session", async () => {
     __resetRateLimitsForTests();
     expect((await api("/api/licks/whatever/like", { method: "POST" })).status).toBe(401);
+    expect((await api("/api/licks/whatever/like", { method: "DELETE" })).status).toBe(401);
+  });
+  it("favorites, pack membership, reports require a session", async () => {
+    __resetRateLimitsForTests();
+    expect((await api("/api/licks/whatever/favorite", { method: "PUT" })).status).toBe(401);
+    expect((await api("/api/licks/whatever/favorite", { method: "DELETE" })).status).toBe(401);
+    expect(
+      (
+        await api("/api/packs/nope/licks", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ lickId: "nope" }),
+        })
+      ).status,
+    ).toBe(401);
+    expect((await api("/api/packs/nope/licks/nope", { method: "DELETE" })).status).toBe(401);
+    expect(
+      (
+        await api("/api/reports", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ lickId: "nope", reason: "spam" }),
+        })
+      ).status,
+    ).toBe(401);
+  });
+});
+
+describe("origin gate: state-changing calls need same-origin (CSRF)", () => {
+  it("session + foreign Origin is rejected before any write", async () => {
+    __resetRateLimitsForTests();
+    const db = env.DB as unknown as Env["DB"];
+    const cookie = await signUpCookie(db, "csrf-evil@example.com");
+    const before = await db.prepare("SELECT COUNT(*) AS n FROM lick").first<{ n: number }>();
+    const res = await rawApi("/api/licks", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      cookie,
+      origin: "https://evil.example",
+      body: JSON.stringify(LICK_BODY),
+    });
+    expect(res.status).toBe(403);
+    const after = await db.prepare("SELECT COUNT(*) AS n FROM lick").first<{ n: number }>();
+    expect(after?.n).toBe(before?.n);
+  });
+  it("session but no Origin header at all is rejected", async () => {
+    __resetRateLimitsForTests();
+    const db = env.DB as unknown as Env["DB"];
+    const cookie = await signUpCookie(db, "csrf-bare@example.com");
+    const res = await rawApi("/api/sync/push", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      cookie,
+      origin: null,
+      body: JSON.stringify({ changes: [] }),
+    });
+    expect(res.status).toBe(403);
+  });
+  it("public reads stay open whatever the Origin", async () => {
+    __resetRateLimitsForTests();
+    expect((await rawApi("/api/licks?limit=5&probe=evil", { origin: "https://evil.example" })).status).toBe(200);
+    const lookup = await rawApi("/api/licks/lookup", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      origin: "https://evil.example",
+      body: JSON.stringify({ signatures: ["m@0:4.7@5:4.M@10:4"] }),
+    });
+    expect(lookup.status).toBe(200);
   });
 });
 

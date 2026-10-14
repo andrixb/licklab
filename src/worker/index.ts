@@ -270,6 +270,26 @@ export default {
     const url = new URL(request.url);
     const appOrigin = env.APP_ORIGIN ?? originOf(request);
 
+    // Same-origin gate for every state-changing API call (CSRF). Session
+    // cookies are ambient credentials, so any POST/PUT/DELETE outside the
+    // OAuth flow must prove it runs in our origin — before any session check
+    // or write. Reads (GET/HEAD), the public lookup POST, the OAuth flow
+    // itself (cross-site by nature), and admin routes (shared-secret header,
+    // which a cross-origin attacker cannot set) stay ungated. Login is
+    // required to change data, never to read or play.
+    if (
+      request.method !== "GET" &&
+      request.method !== "HEAD" &&
+      url.pathname.startsWith("/api/") &&
+      !url.pathname.startsWith("/api/auth/") &&
+      !url.pathname.startsWith("/api/admin/") &&
+      url.pathname !== "/api/licks/lookup"
+    ) {
+      if (!isSameOrigin(request, appOrigin)) {
+        return json({ ok: false, error: { code: "forbidden", message: "origin check failed" } }, 403);
+      }
+    }
+
     if (url.pathname === "/api/health") {
       if (request.method !== "GET") return json({ ok: false, error: { code: "method_not_allowed", message: "GET only" } }, 405);
       return json({ ok: true, data: checkHealth({ clock: { nowIso: () => new Date().toISOString() } }) });

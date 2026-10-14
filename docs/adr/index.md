@@ -21,3 +21,4 @@
 | [ADR-017](adr-017-band-engine-tone.md) | Band engine: Tone lazy, pure timing core, synths first | Accepted |
 | [ADR-018](adr-018-sample-packs.md) | Sample packs for band engine (M3.5) | Accepted |
 | [ADR-019](adr-019-band-musicality.md) | Band musicality: sections, voice-leading, jazz mix (clean-room) | Accepted |
+| [ADR-020](adr-020-login-gated-writes.md) | Login-gated writes, open reads, same-origin CUD | Accepted |

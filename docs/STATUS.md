@@ -16,6 +16,7 @@
   - **Community catalog API**: public/private licks, likes, favorites, packs, progressions, reports, admin moderation (hide/unhide, dismiss/action reports).
   - **Sync engine (local-first)**: Dexie source of truth, D1 synced copy. `/api/sync/changes` (pull since cursor) + `/api/sync/push` (batch with LWW per record, server stamps). Tombstones for deletes. Composite PKs `(id, owner_id)` so users have independent ID spaces. Cross-user isolation enforced and tested. Chunked writes respect D1 free-tier caps (≤40 statements, ≤64KB per chunk). Property-tested LWW convergence.
   - 30+ workerd tests: cache headers, ETag 304, session-gated writes, tampered `ownerId` rejected, per-user rate caps, sync round-trip, LWW, tombstones, cross-user isolation, validation, oversized pushes.
+  - Auth posture (ADR-020): every CUD route 401s without login (tested per route); all state-changing calls need same-origin (403 on foreign/missing Origin, zero rows written); catalog reads + lookup + playback stay anonymous.
 **Known issues:** OAuth apps/secrets still not created (owner action); preview versions share prod D1 (fix in M4 — partially: sync uses preview DB but catalog reads hit prod); initial JS 375/400 KB — M4 UI must keep lazy-loading; sample-based audio not yet wired (synths now).
 
 **Next (M5):**

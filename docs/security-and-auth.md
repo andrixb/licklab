@@ -17,13 +17,21 @@
   `__Host`/`__Secure` prefixed names; `session.cookieCache` (compact, 300 s)
   avoids D1 reads on most requests; OAuth tokens encrypted at rest
   (`account.encryptOAuthTokens`).
-- **Every protected route** verifies the session from the cookie; `ownerId` is
-  the session user id only — never read from request input. `/api/health` and
-  the auth routes are the only public endpoints.
-- **CSRF/origin**: same-origin API (Worker serves assets + `/api`); state-
-  changing `/api/account` DELETE requires matching `Origin` or
-  `Sec-Fetch-Site: same-origin` (403 otherwise; e2e-covered by workerd tests).
-  CSP in `public/_headers` for asset responses.
+- **Login-gated writes, open reads**: every CUD route requires a session
+  (401 otherwise) — lick creation, like/unlike, favorites, packs + membership,
+  reports, sync pull/push, account export/delete. `ownerId` is the session user
+  id only — never read from request input. Public endpoints (no login, never a
+  write): `/api/health`, `/api/auth/*`, catalog reads (`GET /api/licks`,
+  `POST /api/licks/lookup`, `GET /api/licks/:id`, `GET /api/packs/:id` for
+  public/unlisted packs). Reading and playing backing tracks never need login;
+  only changing cloud data does.
+- **CSRF/origin**: same-origin API (Worker serves assets + `/api`); EVERY
+  state-changing route (`POST`/`PUT`/`DELETE` outside `/api/auth/*`, except the
+  read-only lookup POST) requires matching `Origin` or
+  `Sec-Fetch-Site: same-origin` (403 otherwise, before any session check or
+  write; workerd-tested). Admin routes skip the origin check — their
+  shared-secret header cannot be set cross-origin. CSP in `public/_headers`
+  for asset responses.
 - **Sign-up gate**: `databaseHooks.user.create.before` — account creation is
   blocked unless `OPEN_SIGNUP=1` or the email exists in `allowed_email`; owner
   seeded in `docs/deployment.md`. Deliberately on USER creation, not session:
