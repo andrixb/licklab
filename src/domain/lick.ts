@@ -143,13 +143,16 @@ export function parseLick(input: unknown): Lick {
     if (!isRecord(n)) fail(`pattern[${i}] must be an object`);
     const stepsRaw = reqNumber(n.steps, `pattern[${i}].steps`, -14, 21, true);
     const semisRaw = reqNumber(n.semitones, `pattern[${i}].semitones`, -24, 36, true);
-    // Canonical form: whole octaves carried into `steps`. Only wrap when the
-    // semitone span is a full octave — small negatives are descending
-    // chromatic degrees ({steps:-1, semis:-1} = C# below D) and must survive,
-    // or the wrapped {-8, 11} becomes a different pitch.
-    const carry = semisRaw >= 12 || semisRaw <= -12 ? Math.floor(semisRaw / 12) : 0;
+    // Canonical form: semitones are absolute (they may span whole octaves), so
+    // only the LETTER is lifted into the semitones' octave — never the reverse.
+    // Carrying whole octaves out of semitones ({0, 12} -> {7, 0}) destroys the
+    // pitch spellDegree needs and turns every octave-spanning degree into a
+    // throw. Small negatives are descending chromatic degrees ({steps:-1,
+    // semis:-1} = C# below D) and must survive untouched, which the relative
+    // carry below preserves (both sides already agree on the octave).
+    const carry = Math.floor(semisRaw / 12) - Math.floor(stepsRaw / 7);
     const steps = stepsRaw + carry * 7;
-    const semitones = semisRaw - carry * 12;
+    const semitones = semisRaw;
     if (steps < -14 || steps > 28) fail(`pattern[${i}] out of range after normalization`);
     return {
       steps,

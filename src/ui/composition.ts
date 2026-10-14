@@ -203,6 +203,37 @@ function draftProgression(input: string): Progression {
 // inside the budget check (docs/deployment.md).
 let enginePromise: Promise<AudioEngine> | null = null;
 let engine: AudioEngine | null = null;
+/** Set when the engine CHUNK itself fails to load (before any AudioEngine exists). */
+let importError: string | null = null;
+/** Reload at most once per tab: lets a stranded tab heal without ever looping. */
+const CHUNK_RELOAD_KEY = "licklab:chunk-reloaded";
+
+/**
+ * A failed dynamic chunk import is the signature of a stranded tab: the page is
+ * running a build whose hashed assets a newer deploy has pruned, and the static
+ * server answers the SPA fallback (200 text/html) instead of the chunk. The UI
+ * only ever shows a silent "Uncaught (in promise) TypeError" for that.
+ */
+function isStaleChunkFailure(e: unknown): boolean {
+  return (
+    e instanceof TypeError &&
+    /dynamically imported module|failed to fetch|loading chunk|chunkloaderror/i.test(e instanceof Error ? e.message : String(e))
+  );
+}
+
+/** The audio engine chunk failed to arrive (offline mid-deploy, stranded tab). */
+function markImportFailed(e: unknown): void {
+  importError = e instanceof Error ? e.message : "audio engine unavailable";
+  // Heal the stranded tab: the fresh index.html references chunks that exist.
+  try {
+    if (isStaleChunkFailure(e) && !sessionStorage.getItem(CHUNK_RELOAD_KEY)) {
+      sessionStorage.setItem(CHUNK_RELOAD_KEY, "1");
+      location.reload();
+    }
+  } catch {
+    // sessionStorage/location may be unavailable in some embeds; the alert still shows.
+  }
+}
 function getEngine(): Promise<AudioEngine> {
   if (!enginePromise) {
     enginePromise = import("../adapters/tone/engine.js").then((m) => {
@@ -218,7 +249,14 @@ const playListeners = new Set<() => void>();
 
 async function runPlayback(make: (engine: AudioEngine) => BandPlayback | null): Promise<boolean> {
   currentPlayback?.stop();
-  const engine = await getEngine();
+  let engine: AudioEngine;
+  try {
+    engine = await getEngine();
+  } catch (e) {
+    markImportFailed(e);
+    for (const l of playListeners) l();
+    return false;
+  }
   // Pre-load the samples so a failure is visible immediately rather than the UI
   // claiming play while nothing sounds. The engine records the reason.
   try {
@@ -272,7 +310,7 @@ export const workspace = {
     return currentPlayback !== null && engine?.isPlaying === true;
   },
   get audioError(): string | null {
-    return engine?.lastError ?? null;
+    return importError ?? engine?.lastError ?? null;
   },
   onPlayChange(cb: () => void): () => void {
     playListeners.add(cb);

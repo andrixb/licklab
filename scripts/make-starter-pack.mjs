@@ -121,7 +121,7 @@ const inputs = [
   {
     id: "starter-06",
     title: "Pentatonic Flip",
-    pattern: [n(0, 0, 0), n(2, 3, 0.5), n(3, 5, 1), n(4, 7, 1.5), n(6, 10, 2), n(7, 0, 2.5), n(6, 10, 3), n(4, 7, 3.5)],
+    pattern: [n(0, 0, 0), n(2, 3, 0.5), n(3, 5, 1), n(4, 7, 1.5), n(6, 10, 2), n(7, 12, 2.5), n(6, 10, 3), n(4, 7, 3.5)],
     harmonicContext: { chords: [{ symbol: "Am7", beats: 4 }], originalKey: "A", function: "static minor" },
     tags: ["pentatonic", "minor", "single chord"],
     difficulty: 2,
@@ -130,7 +130,7 @@ const inputs = [
   {
     id: "starter-07",
     title: "Major Land",
-    pattern: [n(0, 0, 0), n(2, 4, 0.5), n(4, 7, 1), n(6, 11, 1.5), n(7, 0, 2, 1)],
+    pattern: [n(0, 0, 0), n(2, 4, 0.5), n(4, 7, 1), n(6, 11, 1.5), n(7, 12, 2, 1)],
     harmonicContext: { chords: [{ symbol: "Cmaj7", beats: 4 }], originalKey: "C", function: "static major" },
     tags: ["arpeggio", "major", "single chord"],
     difficulty: 1,

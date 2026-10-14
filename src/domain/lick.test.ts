@@ -90,11 +90,15 @@ describe("parseLick", () => {
     expect(() => validLick({ tags: [42 as never] })).toThrow(LickValidationError);
     expect(() => validLick({ createdAt: "not-a-date" })).toThrow(LickValidationError);
   });
-  it("canonicalizes degrees (semitones 0..11)", () => {
+  it("canonicalizes degrees (letter lifted into the semitones' octave)", () => {
+    // {steps:0, semis:14} is a D an octave up written on the root letter: only
+    // the letter moves ({7, 14} spells Cx5 at +14 semis). Carrying the octave out
+    // of the semitones instead ({7, 2}) destroys the pitch and makes
+    // spellDegree throw — that was the Major Land audition crash.
     const lick = validLick({
       pattern: [{ steps: 0, semitones: 14, octaveOffset: 0, startBeat: 0, durationBeats: 1 }],
     });
-    expect(lick.pattern[0]).toMatchObject({ steps: 7, semitones: 2 });
+    expect(lick.pattern[0]).toMatchObject({ steps: 7, semitones: 14 });
   });
   it("property: function enum round trips; every function accepted", () => {
     for (const fn of LICK_FUNCTIONS) {
@@ -123,7 +127,17 @@ describe("parseLick descending degrees (regression)", () => {
     const lick = validLick({
       pattern: [{ steps: 0, semitones: 14, octaveOffset: 0, startBeat: 0, durationBeats: 1 }],
     });
-    expect(lick.pattern[0]).toMatchObject({ steps: 7, semitones: 2 });
+    expect(lick.pattern[0]).toMatchObject({ steps: 7, semitones: 14 });
+  });
+  it("normalizes the corrupted octave form instead of crashing on it", () => {
+    // The starter pack once shipped the octave as {steps:7, semis:0} (mod-12
+    // semitones). That names the root pitch, so it collapses to the unison —
+    // pitch-preserving, and transposeLick then spells it instead of throwing
+    // mid-audition (the "Major Land" crash).
+    const lick = validLick({
+      pattern: [{ steps: 7, semitones: 0, octaveOffset: 0, startBeat: 0, durationBeats: 1 }],
+    });
+    expect(lick.pattern[0]).toMatchObject({ steps: 0, semitones: 0 });
   });
   it("descending chromatic walkdown transposes without throwing", () => {
     const lick = validLick({

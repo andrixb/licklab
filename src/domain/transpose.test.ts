@@ -31,6 +31,27 @@ describe("transposeLick", () => {
     const target = parseChordSymbol("Eb°7").root;
     expect(transposeLick(lick, target).map((n) => pitchName(n.pitch))).toEqual(["Eb", "Gb", "Bbb", "Dbb"]);
   });
+  it("regression: octave-spanning line auditions over ii-V-I without throwing", () => {
+    // The Major Land starter lick ascends 1-3-5-7-8ve; auditioning it over
+    // Dm7|G7|Cmaj7 crashed spellDegree with (steps=7, semis=0) because the
+    // octave was stored mod-12 and parseLick carried the octave the wrong way.
+    const lick = validLick({
+      harmonicContext: { chords: [{ symbol: "Cmaj7", beats: 4 }], originalKey: "C", function: "static major" },
+      pattern: [
+        { steps: 0, semitones: 0, octaveOffset: 0, startBeat: 0, durationBeats: 0.5 },
+        { steps: 2, semitones: 4, octaveOffset: 0, startBeat: 0.5, durationBeats: 0.5 },
+        { steps: 4, semitones: 7, octaveOffset: 0, startBeat: 1, durationBeats: 0.5 },
+        { steps: 6, semitones: 11, octaveOffset: 0, startBeat: 1.5, durationBeats: 0.5 },
+        { steps: 7, semitones: 12, octaveOffset: 0, startBeat: 2, durationBeats: 1 },
+      ],
+    });
+    for (const symbol of ["Dm7", "G7", "Cmaj7"]) {
+      const notes = transposeLick(lick, parseChordSymbol(symbol).root);
+      expect(notes).toHaveLength(5);
+      // the top note sits exactly one octave above the first (+12 semitones)
+      expect(midiOf(notes[4]!.pitch) - midiOf(notes[0]!.pitch)).toBe(12);
+    }
+  });
   it("property: transposition preserves semitone shape across all 12 roots", () => {
     const roots = ["C", "Db", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"];
     fc.assert(
