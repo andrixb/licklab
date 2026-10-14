@@ -58,6 +58,12 @@ export function createToneEngine(): AudioEngine {
         drums.volume.value = -8;
         lick.volume.value = -2;
         loadError = null;
+        // Diagnostics only: expose the live graph in dev so audio probes (and
+        // the Playwright e2e harness) can tap Tone's destination with an
+        // AnalyserNode. Stripped from production builds by the DEV gate.
+        if (import.meta.env.DEV) {
+          (globalThis as unknown as { __licklabAudio?: unknown }).__licklabAudio = { tone: T, voices };
+        }
       } catch (e) {
         // A sample that 404s, fails to decode, or is missing from the map.
         loadError = e instanceof Error ? e.message : "audio samples failed to load";

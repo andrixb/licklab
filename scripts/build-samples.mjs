@@ -100,7 +100,7 @@ function sparseClone(url, dirName, paths) {
   return target;
 }
 
-/** mono/44.1k/16-bit + trim -> small, browser-safe WAV (optionally pitched up). */
+/** mono/44.1k/16-bit + trim + peak-normalize -> small, browser-safe, EVEN WAV. */
 function transcode(src, dest, trim, semis = 0) {
   mkdirSync(dirname(dest), { recursive: true });
   // asetrate/aresample transposes (the tempo shift that comes with it is exactly
@@ -108,9 +108,23 @@ function transcode(src, dest, trim, semis = 0) {
   const pitch = semis ? `-af asetrate=${Math.round(44100 * 2 ** (semis / 12))},aresample=44100` : "";
   const duration = trim * (semis ? 2 ** (semis / 12) : 1); // compensate the rate change
   execSync(
-    `ffmpeg -hide_banner -loglevel error -y -i "${src}" ${pitch} -ac 1 -ar 44100 -t ${duration.toFixed(3)} -c:a pcm_s16le "${dest}"`,
+    `ffmpeg -hide_banner -loglevel error -y -i "${src}" ${pitch} -ac 1 -ar 44100 -t ${duration.toFixed(3)} -c:a pcm_s16le "${dest}.raw.wav"`,
     { cwd: ROOT, stdio: "inherit" },
   );
+  // Peak-normalize: upstream libraries record at wildly different levels (the
+  // contrabass arrived 30dB under the kick), and fixed voice gains cannot fix
+  // that. -3dBFS peak keeps headroom for the sampler's own gain staging.
+  const detect = execSync(`ffmpeg -hide_banner -i "${dest}.raw.wav" -af volumedetect -f null - 2>&1`, {
+    cwd: ROOT,
+  }).toString();
+  const peakDb = parseFloat(/max_volume:\s*(-?[\d.]+)\s*dB/.exec(detect)?.[1] ?? "NaN");
+  if (!Number.isFinite(peakDb)) throw new Error(`cannot measure peak of ${dest}`);
+  const gain = -3 - peakDb;
+  execSync(
+    `ffmpeg -hide_banner -loglevel error -y -i "${dest}.raw.wav" -af volume=${gain.toFixed(2)}dB -c:a pcm_s16le "${dest}"`,
+    { cwd: ROOT, stdio: "inherit" },
+  );
+  rmSync(`${dest}.raw.wav`, { force: true });
 }
 
 const NOTE_TO_PC = { C: 0, "C#": 1, D: 2, "D#": 3, E: 4, F: 5, "F#": 6, G: 7, "G#": 8, A: 9, "A#": 10, B: 11 };

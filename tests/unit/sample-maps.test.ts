@@ -207,6 +207,23 @@ describe("sample pack (ADR-018)", () => {
     }
   });
 
+  it("no sample is whisper-quiet (normalize at build time)", () => {
+    // Regression: the contrabass arrived ~30dB under the kick, so the bass was
+    // inaudible no matter the voice gain. The build peak-normalizes everything
+    // to -3dBFS; this pins a floor so a silent file can never ship.
+    for (const voice of VOICES) {
+      for (const url of Object.values(samplerUrlsFor(voice).urls)) {
+        const wav = readWav(abs(voice, url));
+        let peak = 0;
+        for (let i = 0; i < wav.data.length; i++) {
+          const a = Math.abs(wav.data[i] ?? 0);
+          if (a > peak) peak = a;
+        }
+        expect(peak / 32768, `${voice}/${url} peaks at ${(20 * Math.log10(peak / 32768)).toFixed(1)}dBFS`).toBeGreaterThan(0.35);
+      }
+    }
+  });
+
   it("drums cover the roles the band engine schedules", () => {
     // kick 35/36, snare 38/40, hat 42/44/46, ride 51/59, crash 49/57.
     const drums = samplerUrlsFor("drums").urls;
