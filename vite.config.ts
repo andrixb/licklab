@@ -2,9 +2,22 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
+import { execSync } from "node:child_process";
+
+function buildId(): string {
+  try {
+    return execSync("git rev-parse --short HEAD").toString().trim();
+  } catch {
+    return new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "");
+  }
+}
 
 export default defineConfig({
-  plugins: [
+  define: {
+    // Baked into the bundle so the footer can show exactly which build a tab
+    // is running — the only reliable way to tell a stale practice tab apart.
+    __BUILD_ID__: JSON.stringify(buildId()),
+  },  plugins: [
     react(),
     tailwindcss(),
     VitePWA({

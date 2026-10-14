@@ -88,7 +88,8 @@ export function App(): React.JSX.Element {
           (link-out only).{" "}
           <a href="/attribution" className={btnLink} style={{ marginLeft: "1rem" }}>
             Sample Attributions
-          </a>
+          </a>{" "}
+          <span title="Deployed build — tells a stale practice tab apart at a glance">build {__BUILD_ID__}</span>
         </p>
       </footer>
     </div>
