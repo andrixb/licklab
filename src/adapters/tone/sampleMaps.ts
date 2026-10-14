@@ -191,7 +191,8 @@ export function samplerUrlsFor(voice: SampleVoice, variant?: string): SamplerUrl
   const urls: Record<string, string> = {};
   const isFluidR3 = variant === "electric_piano" || variant === "acoustic" || variant === "grand_piano";
   const isMachine = variant === "machine";
-  const ext = (isFluidR3 || isMachine) ? ".ogg" : ".wav";
+  // All our samples are now WAV (converted from OGG/Ogg)
+  const ext = ".wav";
   for (const [note, filename] of Object.entries(map)) urls[note] = `${filename}${ext}`;
   
   // Determine subdirectory based on variant
