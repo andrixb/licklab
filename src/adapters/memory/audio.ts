@@ -24,6 +24,9 @@ export function createFakeAudioEngine(): FakeAudioEngine {
     get isPlaying(): boolean {
       return engine.playing;
     },
+    getPositionSeconds(): number {
+      return 0;
+    },
     play(events: readonly TimedEvent[], totalSeconds: number): BandPlayback {
       if (engine.lastError) throw new Error(engine.lastError);
       engine.played.push([...events]);

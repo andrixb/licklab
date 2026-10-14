@@ -225,9 +225,11 @@ describe("sample pack (ADR-018)", () => {
   });
 
   it("drums cover the roles the band engine schedules", () => {
-    // kick 35/36, snare 38/40, hat 42/44/46, ride 51/59, crash 49/57.
+    // kick 35/36, snare 38/40, hat 42/44/46, ride 51/59, crash 49/57 —
+    // plus the jmove adapter's GM extras (side-stick 37, toms 43/45/47/50,
+    // china/splash 52/55, ride-bell 53), aliased to family voices.
     const drums = samplerUrlsFor("drums").urls;
-    for (const midi of [36, 38, 42, 51, 49]) {
+    for (const midi of [35, 36, 37, 38, 40, 42, 43, 44, 45, 46, 47, 49, 50, 51, 52, 53, 55, 57, 59]) {
       expect(drums[midi], `no drum sample for MIDI ${midi}`).toBeDefined();
     }
     expect(new Set(Object.values(drums)).size).toBe(5);

@@ -9,7 +9,8 @@
 import type { Lick } from "../domain/lick.js";
 import type { Song } from "../domain/song.js";
 import type { CatalogLick } from "../domain/matching.js";
-import type { TimedEvent } from "../domain/band.js";
+import type { BandEvent, BandPart, BandStyle, TimedEvent } from "../domain/band.js";
+import type { FlatChord } from "../domain/progression.js";
 
 export interface LickFilter {
   readonly function?: string;
@@ -55,14 +56,56 @@ export interface BandPlayback {
   stop(): void;
   finished: Promise<void>;
 }
+/** Per-voice level multipliers (0..1.5); absent voices default to 1. */
+export interface BandLevels {
+  readonly bass?: number;
+  readonly piano?: number;
+  readonly drums?: number;
+  readonly lick?: number;
+}
+export interface BandPlayOpts {
+  readonly levels?: BandLevels;
+  /** Seamless Transport loop over the chorus (finished resolves on stop). */
+  readonly loop?: boolean;
+}
 export interface AudioEngine {
   /** User-gesture unlock (Tone.start) — safe to call repeatedly. */
   unlock(): Promise<void>;
-  play(events: readonly TimedEvent[], totalSeconds: number, gainDb?: number): BandPlayback;
+  play(events: readonly TimedEvent[], totalSeconds: number, gainDb?: number, opts?: BandPlayOpts): BandPlayback;
   /** True only while audio is actually being produced (never during loading). */
   readonly isPlaying: boolean;
+  /** Transport position in seconds (for playhead display; 0 when idle). */
+  getPositionSeconds(): number;
   /** Report missing/failed samples so the UI can say so instead of silent play. */
   readonly lastError: string | null;
+}
+/**
+ * Pattern source for the band: turns chords into beat-grid events. The local
+ * domain engine and the lazy jmove adapter both implement this; use cases
+ * stay engine-agnostic and the UI never imports adapters directly.
+ */
+export interface BandGenerateOptions {
+  readonly seed?: number;
+  readonly density?: number;
+  readonly swingAmount?: number;
+  readonly strumMs?: number;
+  readonly creativity?: number;
+  readonly conversation?: number;
+  readonly airGaps?: number;
+  readonly harmonicFreedom?: number;
+  readonly drumComplexity?: number;
+  readonly pianoComplexity?: number;
+  readonly bassComplexity?: number;
+}
+export interface BandPatternProvider {
+  readonly name: string;
+  generateBand(
+    flat: readonly FlatChord[],
+    style: BandStyle,
+    part: BandPart,
+    tempoBpm: number,
+    opts?: BandGenerateOptions,
+  ): Promise<readonly BandEvent[]>;
 }
 export interface BackingProvider {
   readonly name: "backing-provider";

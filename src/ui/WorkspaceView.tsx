@@ -8,7 +8,7 @@ import type { Lick } from "../domain/lick.js";
 import type { RankedMatch } from "../domain/matching.js";
 import type { SegmentMatches } from "../application/matching.js";
 import { navigate, shareUrlForChords } from "./router.js";
-import { workspace } from "./composition.js";
+import { workspace, type WorkspacePlayOpts } from "./composition.js";
 import { btn, btnGhost, btnPrimary, card, errorText, input, label, tag } from "./primitives.js";
 
 export interface Placement {
@@ -45,6 +45,62 @@ export interface WorkspaceSeed {
   readonly chords?: string | undefined;
 }
 
+/** Control-room defaults per style (Classic Swing / Soft Ballad / Bossa Nova presets). */
+interface FeelState {
+  readonly swing: number;
+  readonly density: number;
+  readonly strum: number;
+  readonly creativity: number;
+  readonly conversation: number;
+  readonly airGaps: number;
+  readonly harmonic: number;
+  readonly cxDrums: number;
+  readonly cxPiano: number;
+  readonly cxBass: number;
+}
+
+const FEEL_DEFAULTS: Record<BandStyle, FeelState> = {
+  swing: { swing: 70, density: 50, strum: 20, creativity: 30, conversation: 35, airGaps: 15, harmonic: 20, cxDrums: 50, cxPiano: 50, cxBass: 50 },
+  ballad: { swing: 40, density: 20, strum: 0, creativity: 20, conversation: 25, airGaps: 35, harmonic: 20, cxDrums: 50, cxPiano: 50, cxBass: 50 },
+  bossa: { swing: 0, density: 50, strum: 20, creativity: 15, conversation: 20, airGaps: 10, harmonic: 15, cxDrums: 50, cxPiano: 50, cxBass: 50 },
+  straight: { swing: 0, density: 50, strum: 0, creativity: 15, conversation: 20, airGaps: 10, harmonic: 15, cxDrums: 50, cxPiano: 50, cxBass: 50 },
+};
+
+function fmtTime(totalSeconds: number): string {
+  const s = Math.max(0, Math.floor(totalSeconds));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+function Slider({ name, value, min, max, step, unit, onChange }: {
+  name: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  unit: string;
+  onChange: (v: number) => void;
+}): React.JSX.Element {
+  return (
+    <label className={`${label} flex items-center gap-2`}>
+      <span className="w-28 shrink-0">{name}</span>
+      <input
+        type="range"
+        className="grow"
+        aria-label={name}
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+      />
+      <span className="text-dim text-sm w-14 text-right">
+        {value}
+        {unit}
+      </span>
+    </label>
+  );
+}
+
 function seedChords(seed: WorkspaceSeed | undefined): string {
   try {
     if (seed?.preset) return workspace.chordsOf(seed.preset);
@@ -60,6 +116,12 @@ export function WorkspaceView({ seed }: { seed?: WorkspaceSeed | undefined }): R
   const [style, setStyle] = React.useState<BandStyle>("swing");
   const [tempo, setTempo] = React.useState(120);
   const [parts, setParts] = React.useState({ bass: true, piano: true, drums: true });
+  const [levels, setLevels] = React.useState({ bass: 100, piano: 100, drums: 100 });
+  const [countIn, setCountIn] = React.useState<0 | 4 | 8>(4);
+  const [loop, setLoop] = React.useState(false);
+  const [feel, setFeel] = React.useState<FeelState>(FEEL_DEFAULTS.swing);
+  const [takeSeed, setTakeSeed] = React.useState<number | null>(null);
+  const [position, setPosition] = React.useState(0);
   const [segments, setSegments] = React.useState<SegmentMatches[]>([]);
   const [error, setError] = React.useState<string | null>(null);
   const [placements, setPlacements] = React.useState<Placement[]>([]);
@@ -67,6 +129,15 @@ export function WorkspaceView({ seed }: { seed?: WorkspaceSeed | undefined }): R
   const [shareCopied, setShareCopied] = React.useState(false);
 
   React.useEffect(() => workspace.onPlayChange(() => setPlaying(workspace.isPlaying)), []);
+
+  React.useEffect(() => {
+    if (!playing) {
+      setPosition(0);
+      return;
+    }
+    const id = window.setInterval(() => setPosition(workspace.positionSeconds()), 250);
+    return () => window.clearInterval(id);
+  }, [playing]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -90,11 +161,42 @@ export function WorkspaceView({ seed }: { seed?: WorkspaceSeed | undefined }): R
   }, [inputText]);
 
   const bandPart = { ...parts, tempoBpm: tempo };
+  const setF = (key: keyof FeelState) => (v: number) => setFeel((f) => ({ ...f, [key]: v }));
+  const setLevel = (key: keyof typeof levels) => (v: number) => setLevels((l) => ({ ...l, [key]: v }));
+
+  const playOpts: WorkspacePlayOpts = {
+    levels: { bass: levels.bass / 100, piano: levels.piano / 100, drums: levels.drums / 100 },
+    loop,
+    countInBeats: countIn,
+    band: {
+      ...(takeSeed !== null ? { seed: takeSeed } : {}),
+      density: feel.density,
+      swingAmount: feel.swing,
+      strumMs: feel.strum,
+      creativity: feel.creativity,
+      conversation: feel.conversation,
+      airGaps: feel.airGaps,
+      harmonicFreedom: feel.harmonic,
+      drumComplexity: feel.cxDrums,
+      pianoComplexity: feel.cxPiano,
+      bassComplexity: feel.cxBass,
+    },
+  };
+
+  const info = workspace.playbackInfo();
+  const beat = info ? position - (info.countInBeats * 60) / info.tempoBpm : 0;
+  const currentSegment = beat >= 0 ? segments.findIndex((sm) => beat >= sm.segment.startBeat && beat < sm.segment.endBeat) : -1;
 
   const guard = (p: Promise<boolean>): void => {
     void p.then((found) => {
       if (!found) setError(workspace.audioError ?? "That lick does not fit the current progression.");
     });
+  };
+
+  const pickStyle = (s: BandStyle): void => {
+    setStyle(s);
+    setFeel(FEEL_DEFAULTS[s]);
+    setTakeSeed(null);
   };
 
   return (
@@ -127,7 +229,7 @@ export function WorkspaceView({ seed }: { seed?: WorkspaceSeed | undefined }): R
         <div className="flex flex-wrap items-end gap-3">
           <label className={label}>
             Style
-            <select className={input} aria-label="Band style" value={style} onChange={(e) => setStyle(e.target.value as BandStyle)}>
+            <select className={input} aria-label="Band style" value={style} onChange={(e) => pickStyle(e.target.value as BandStyle)}>
               {BAND_STYLES.map((s) => (
                 <option key={s} value={s}>
                   {s}
@@ -139,26 +241,41 @@ export function WorkspaceView({ seed }: { seed?: WorkspaceSeed | undefined }): R
             Tempo
             <input className={input} aria-label="Tempo BPM" type="number" min={40} max={300} value={tempo} onChange={(e) => setTempo(Number(e.target.value))} />
           </label>
-          {(["bass", "piano", "drums"] as const).map((v) => (
-            <label key={v} className={`${label} flex items-center gap-2`}>
-              <input type="checkbox" checked={parts[v]} onChange={(e) => setParts((p) => ({ ...p, [v]: e.target.checked }))} aria-label={v} />
-              {v}
-            </label>
-          ))}
         </div>
         <div className="flex flex-wrap gap-2">
           {playing ? (
             <button type="button" className={btnPrimary} onClick={() => workspace.stop()}>■ Stop</button>
           ) : (
-            <button type="button" className={btnPrimary} onClick={() => guard(workspace.playChorus(inputText, style, bandPart))}>
+            <button type="button" className={btnPrimary} onClick={() => guard(workspace.playChorus(inputText, style, bandPart, playOpts))}>
               ▶ Play chorus
             </button>
           )}
+          <div className="flex flex-wrap gap-2 items-center" role="group" aria-label="Count-in">
+            {([0, 4, 8] as const).map((b) => (
+              <button
+                key={b}
+                type="button"
+                className={countIn === b ? btn : btnGhost}
+                aria-label={b === 0 ? "Count-in off" : `Count-in ${b / 4} bar${b === 4 ? "" : "s"}`}
+                aria-pressed={countIn === b}
+                onClick={() => setCountIn(b)}
+              >
+                {b === 0 ? "No count" : `${b / 4} bar${b === 4 ? "" : "s"}`}
+              </button>
+            ))}
+          </div>
+          <label className={`${label} flex items-center gap-2`}>
+            <input type="checkbox" checked={loop} onChange={(e) => setLoop(e.target.checked)} aria-label="Loop chorus" />
+            Loop
+          </label>
+          <button type="button" className={btnGhost} onClick={() => setTakeSeed((Math.random() * 0xffffffff) | 0)} aria-label="New take">
+            New take
+          </button>
           {placements.length > 0 && (
             <button
               type="button"
               className={btn}
-              onClick={() => guard(workspace.playSoloChorus(inputText, placements.map((pl) => ({ lick: pl.lick, segmentIndex: pl.segmentIndex })), style, bandPart))}
+              onClick={() => guard(workspace.playSoloChorus(inputText, placements.map((pl) => ({ lick: pl.lick, segmentIndex: pl.segmentIndex })), style, bandPart, playOpts))}
             >
               ▶ Solo chorus ({placements.length})
             </button>
@@ -180,6 +297,49 @@ export function WorkspaceView({ seed }: { seed?: WorkspaceSeed | undefined }): R
             {error}
           </p>
         )}
+        {info && (
+          <p className="text-dim text-sm m-0" aria-label="Playback status">
+            {fmtTime(position)} / {fmtTime(info.totalSeconds)} · {info.engineLabel} · take {takeSeed !== null ? takeSeed.toString(16) : "auto"}
+            {currentSegment >= 0 && segments[currentSegment] ? ` · now: ${segments[currentSegment]?.segment.chords.map((c) => c.symbol).join(" ") ?? ""}` : ""}
+          </p>
+        )}
+      </div>
+
+      <div className={`${card} p-[18px] grid gap-3`} aria-label="Band mixer">
+        <h3 className="font-serif mt-0 mb-0">Mixer</h3>
+        {(["bass", "piano", "drums"] as const).map((v) => (
+          <div key={v} className="flex flex-wrap items-center gap-2">
+            <label className={`${label} flex items-center gap-2`}>
+              <input type="checkbox" checked={parts[v]} onChange={(e) => setParts((p) => ({ ...p, [v]: e.target.checked }))} aria-label={v} />
+              {v}
+            </label>
+            <div className="grow min-w-40">
+              <Slider name={`${v} level`} value={levels[v]} min={0} max={100} step={1} unit="%" onChange={setLevel(v)} />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className={`${card} p-[18px] grid gap-3`} aria-label="Band feel">
+        <h3 className="font-serif mt-0 mb-0">Feel</h3>
+        <Slider name="Swing" value={feel.swing} min={0} max={100} step={1} unit="%" onChange={setF("swing")} />
+        <Slider name="Density" value={feel.density} min={0} max={100} step={1} unit="%" onChange={setF("density")} />
+        <Slider name="Strum" value={feel.strum} min={0} max={30} step={1} unit="ms" onChange={setF("strum")} />
+      </div>
+
+      <div className={`${card} p-[18px] grid gap-3`} aria-label="Band musicality">
+        <h3 className="font-serif mt-0 mb-0">Musicality</h3>
+        <Slider name="Creativity" value={feel.creativity} min={0} max={100} step={1} unit="%" onChange={setF("creativity")} />
+        <Slider name="Conversation" value={feel.conversation} min={0} max={100} step={1} unit="%" onChange={setF("conversation")} />
+        <Slider name="Air gaps" value={feel.airGaps} min={0} max={100} step={1} unit="%" onChange={setF("airGaps")} />
+        <Slider name="Harmonic freedom" value={feel.harmonic} min={0} max={100} step={1} unit="%" onChange={setF("harmonic")} />
+      </div>
+
+      <div className={`${card} p-[18px] grid gap-3`} aria-label="Instrument complexity">
+        <h3 className="font-serif mt-0 mb-0">Complexity</h3>
+        <Slider name="Drums" value={feel.cxDrums} min={0} max={100} step={1} unit="%" onChange={setF("cxDrums")} />
+        <Slider name="Piano" value={feel.cxPiano} min={0} max={100} step={1} unit="%" onChange={setF("cxPiano")} />
+        <Slider name="Bass" value={feel.cxBass} min={0} max={100} step={1} unit="%" onChange={setF("cxBass")} />
       </div>
 
       {placements.length > 0 && (
@@ -200,9 +360,12 @@ export function WorkspaceView({ seed }: { seed?: WorkspaceSeed | undefined }): R
       )}
 
       {segments.map((sm, i) => (
-        <div key={`${sm.segment.startBeat}-${i}`} className={`${card} p-[18px]`} aria-label={`segment ${i + 1}`}>
+        <div key={`${sm.segment.startBeat}-${i}`} aria-label={`segment ${i + 1}`} aria-current={i === currentSegment ? "true" : undefined} className={`${card} p-[18px]`}>
           <p className="m-0 mb-2">
-            <span className="font-semibold text-gold-dim tracking-wide">{sm.segment.chords.map((c) => c.symbol).join(" → ")}</span>{" "}
+            <span className="font-semibold text-gold-dim tracking-wide">
+              {i === currentSegment ? "▶ " : ""}
+              {sm.segment.chords.map((c) => c.symbol).join(" → ")}
+            </span>{" "}
             <span className={tag}>{sm.segment.functionKey}</span>
             <span className="text-dim text-sm ml-2">
               beats {sm.segment.startBeat}–{sm.segment.endBeat}
@@ -216,8 +379,8 @@ export function WorkspaceView({ seed }: { seed?: WorkspaceSeed | undefined }): R
                 <MatchRow
                   key={`${i}:${m.lick.id}`}
                   match={m}
-                  onAudition={() => guard(workspace.auditionLick(inputText, m.lick, style, bandPart))}
-                  onKeys={() => guard(workspace.playTwelveKeys(m.lick, style, bandPart))}
+                  onAudition={() => guard(workspace.auditionLick(inputText, m.lick, style, bandPart, playOpts))}
+                  onKeys={() => guard(workspace.playTwelveKeys(m.lick, style, bandPart, playOpts))}
                   onPlace={() =>
                     setPlacements((ps) =>
                       ps.some((x) => x.lick.id === m.lick.id && x.segmentIndex === i)

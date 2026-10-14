@@ -84,6 +84,23 @@ describe("tone scheduling mapping", () => {
     const hat = instr.find((i) => i.instrument === "hat");
     expect(ride!.durationSeconds).toBeGreaterThan(hat!.durationSeconds);
   });
+  it("explicit event velocities pass through (jmove takes)", () => {
+    const plan = buildChorus(flat, "swing", part);
+    const timed = toTimedEvents(plan, 120).map((e) => ({ ...e, velocity: 0.33 }));
+    const instr = toPlaybackInstructions(timed);
+    for (const i of instr) expect(i.velocity).toBeCloseTo(0.33, 5);
+  });
+  it("mixer levels scale per voice (mute = ~silent)", () => {
+    const plan = buildChorus(flat, "swing", part);
+    const timed = toTimedEvents(plan, 120);
+    const muted = toPlaybackInstructions(timed, { bass: 0, piano: 0.5, drums: 1 });
+    for (const i of muted.filter((x) => x.instrument === "bass")) expect(i.velocity).toBeCloseTo(0.05, 5);
+    const pianoFull = toPlaybackInstructions(timed, { piano: 1 }).filter((x) => x.instrument === "piano");
+    const pianoHalf = muted.filter((x) => x.instrument === "piano");
+    for (let k = 0; k < pianoFull.length; k++) {
+      expect(pianoHalf[k]!.velocity).toBeCloseTo(pianoFull[k]!.velocity * 0.5, 5);
+    }
+  });
 });
 
 describe("FakeAudioEngine (port contract)", () => {

@@ -12,13 +12,31 @@ import { VerovioRenderer } from "../adapters/notation/verovio.js";
 import { deleteLick, listLicks, saveLick, type SaveLickInput } from "../application/licks.js";
 import { createLickFromAbc, type AbcLickInput } from "../application/lickInput.js";
 import { findLicksForProgression } from "../application/matching.js";
-import { auditionLick, playChorus, playSoloChorus, playTwelveKeys } from "../application/playback.js";
+import { auditionLick, playChorus, playSoloChorus, playTwelveKeys, type PlayOptions } from "../application/playback.js";
 import { SEED_LICKS } from "../application/seeds.js";
-import type { AudioEngine, BandPlayback, LickFilter } from "../application/ports.js";
+import type { AudioEngine, BandGenerateOptions, BandLevels, BandPlayback, BandPatternProvider, LickFilter } from "../application/ports.js";
+import { createLocalBandProvider } from "../adapters/local/band.js";
 import type { Lick } from "../domain/lick.js";
 import type { BandPart, BandStyle } from "../domain/band.js";
 import type { CatalogLick } from "../domain/matching.js";
-import { analyzeProgression, parseProgressionInput, PRESETS, type Progression } from "../domain/progression.js";
+import { analyzeProgression, flattenProgression, parseProgressionInput, PRESETS, type Progression, type ProgressionBar } from "../domain/progression.js";
+
+/** Extra playback controls from the workspace control room (all optional). */
+export interface WorkspacePlayOpts {
+  readonly levels?: BandLevels;
+  readonly loop?: boolean;
+  /** Beats of count-in silence (0/4/8); default 4. */
+  readonly countInBeats?: number;
+  readonly band?: BandGenerateOptions;
+}
+
+export interface PlaybackInfo {
+  readonly totalSeconds: number;
+  readonly countInBeats: number;
+  readonly totalBeats: number;
+  readonly tempoBpm: number;
+  readonly engineLabel: string;
+}
 
 /** Signed-out local-only mode namespace (attaches to the account on first sign-in). */
 export const LOCAL_OWNER = "local";
@@ -245,7 +263,50 @@ function getEngine(): Promise<AudioEngine> {
 }
 
 let currentPlayback: BandPlayback | null = null;
+let lastInfo: PlaybackInfo | null = null;
 const playListeners = new Set<() => void>();
+
+/** Local domain engine (always available, offline). */
+const localProvider = createLocalBandProvider();
+
+/**
+ * Pattern source per style: jmove (lazy, MIT) for swing/ballad/bossa, local
+ * domain engine for straight. Any jmove failure (import, generation) falls
+ * back to local so playback still starts — the info label says which won.
+ */
+async function withProvider<T>(
+  style: BandStyle,
+  run: (provider: BandPatternProvider) => Promise<T>,
+): Promise<{ result: T; engineLabel: string }> {
+  if (style === "straight") return { result: await run(localProvider), engineLabel: "local" };
+  try {
+    const mod = await import("../adapters/jmove/generator.js");
+    const version = await mod.jmoveVersion().catch(() => "?");
+    const out = await run(mod.createJmoveBandProvider());
+    return { result: out, engineLabel: `jmove ${version}` };
+  } catch {
+    return { result: await run(localProvider), engineLabel: "local" };
+  }
+}
+
+function infoFor(bars: readonly ProgressionBar[], tempoBpm: number, countInBeats: number, engineLabel: string): PlaybackInfo {
+  const flat = flattenProgression(bars);
+  const totalBeats = flat.reduce((n, c) => n + c.beats, 0);
+  return { totalSeconds: ((totalBeats + countInBeats) * 60) / tempoBpm, countInBeats, totalBeats, tempoBpm, engineLabel };
+}
+
+/** PlayOptions without provider (exactOptionalPropertyTypes-safe). */
+function basePlayOptions(style: BandStyle, parts: BandPart, playOpts?: WorkspacePlayOpts): PlayOptions {
+  return {
+    style,
+    tempoBpm: parts.tempoBpm,
+    parts,
+    ...(playOpts?.band !== undefined ? { bandOpts: playOpts.band } : {}),
+    ...(playOpts?.countInBeats !== undefined ? { countInBeats: playOpts.countInBeats } : {}),
+    ...(playOpts?.levels !== undefined ? { levels: playOpts.levels } : {}),
+    ...(playOpts?.loop !== undefined ? { loop: playOpts.loop } : {}),
+  };
+}
 
 /**
  * A newer build finished installing in the background (service worker update).
@@ -270,7 +331,9 @@ export function noteAppUpdateReady(): void {
   maybeReloadForUpdate();
 }
 
-async function runPlayback(make: (engine: AudioEngine) => BandPlayback | null): Promise<boolean> {
+async function runPlayback(
+  make: (engine: AudioEngine) => Promise<{ playback: BandPlayback | null; info: PlaybackInfo | null }>,
+): Promise<boolean> {
   currentPlayback?.stop();
   let engine: AudioEngine;
   try {
@@ -287,12 +350,13 @@ async function runPlayback(make: (engine: AudioEngine) => BandPlayback | null): 
   } catch {
     return false;
   }
-  const playback = make(engine);
-  if (!playback) return false;
-  currentPlayback = playback;
+  const resolved = await make(engine);
+  if (!resolved.playback) return false;
+  currentPlayback = resolved.playback;
+  lastInfo = resolved.info;
   for (const l of playListeners) l();
-  await playback.finished;
-  if (currentPlayback === playback) currentPlayback = null;
+  await resolved.playback.finished;
+  if (currentPlayback === resolved.playback) currentPlayback = null;
   for (const l of playListeners) l();
   maybeReloadForUpdate();
   return true;
@@ -309,20 +373,53 @@ export const workspace = {
     const progression = draftProgression(input);
     return { progression, result: findLicksForProgression(progression, await catalogLicks()) };
   },
-  playChorus: (input: string, style: BandStyle, parts: BandPart) =>
-    runPlayback((e) => playChorus(e, draftProgression(input).bars, { style, tempoBpm: parts.tempoBpm, parts })),
-  auditionLick: (input: string, lick: Lick, style: BandStyle, parts: BandPart) =>
-    runPlayback((e) => {
-      const p = draftProgression(input);
-      return auditionLick(e, p.bars, findSegmentsFor(p), lick, { style, tempoBpm: parts.tempoBpm, parts });
+  playChorus: (input: string, style: BandStyle, parts: BandPart, playOpts?: WorkspacePlayOpts) =>
+    runPlayback(async (e) => {
+      const bars = draftProgression(input).bars;
+      const countIn = playOpts?.countInBeats ?? 4;
+      const base = basePlayOptions(style, parts, playOpts);
+      const { result: playback, engineLabel } = await withProvider(style, (p) => playChorus(e, bars, { ...base, provider: p }));
+      return { playback, info: infoFor(bars, parts.tempoBpm, countIn, engineLabel) };
     }),
-  playSoloChorus: (input: string, placements: readonly { lick: Lick; segmentIndex: number }[], style: BandStyle, parts: BandPart) =>
-    runPlayback((e) => {
+  auditionLick: (input: string, lick: Lick, style: BandStyle, parts: BandPart, playOpts?: WorkspacePlayOpts) =>
+    runPlayback(async (e) => {
       const p = draftProgression(input);
-      return playSoloChorus(e, p.bars, findSegmentsFor(p), placements, { style, tempoBpm: parts.tempoBpm, parts });
+      const countIn = playOpts?.countInBeats ?? 4;
+      const base = basePlayOptions(style, parts, playOpts);
+      const { result: playback, engineLabel } = await withProvider(style, (provider) =>
+        auditionLick(e, p.bars, findSegmentsFor(p), lick, { ...base, provider }),
+      );
+      return { playback, info: playback ? infoFor(p.bars, parts.tempoBpm, countIn, engineLabel) : null };
     }),
-  playTwelveKeys: (lick: Lick, style: BandStyle, parts: BandPart) =>
-    runPlayback((e) => playTwelveKeys(e, lick, { style, tempoBpm: parts.tempoBpm, parts })),
+  playSoloChorus: (
+    input: string,
+    placements: readonly { lick: Lick; segmentIndex: number }[],
+    style: BandStyle,
+    parts: BandPart,
+    playOpts?: WorkspacePlayOpts,
+  ) =>
+    runPlayback(async (e) => {
+      const p = draftProgression(input);
+      const countIn = playOpts?.countInBeats ?? 4;
+      const base = basePlayOptions(style, parts, playOpts);
+      const { result: playback, engineLabel } = await withProvider(style, (provider) =>
+        playSoloChorus(e, p.bars, findSegmentsFor(p), placements, { ...base, provider }),
+      );
+      return { playback, info: infoFor(p.bars, parts.tempoBpm, countIn, engineLabel) };
+    }),
+  playTwelveKeys: (lick: Lick, style: BandStyle, parts: BandPart, playOpts?: WorkspacePlayOpts) =>
+    runPlayback(async (e) => {
+      const base = basePlayOptions(style, parts, playOpts);
+      const { result: playback, engineLabel } = await withProvider(style, (provider) => playTwelveKeys(e, lick, { ...base, provider }));
+      const ctxBeats = lick.harmonicContext.chords.reduce((n, c) => n + c.beats, 0);
+      const totalBeats = 12 * ctxBeats;
+      return {
+        playback,
+        info: playback
+          ? { totalSeconds: ((totalBeats + 4) * 60) / parts.tempoBpm, countInBeats: 0, totalBeats, tempoBpm: parts.tempoBpm, engineLabel }
+          : null,
+      };
+    }),
   stop(): void {
     currentPlayback?.stop();
     currentPlayback = null;
@@ -333,6 +430,17 @@ export const workspace = {
     // Read the engine, not local state: a failed sample load must not leave the
     // UI claiming playback (Tone would stay silent forever otherwise).
     return currentPlayback !== null && engine?.isPlaying === true;
+  },
+  /** Transport position in seconds (playhead display; 0 when idle). */
+  positionSeconds(): number {
+    try {
+      return engine?.getPositionSeconds() ?? 0;
+    } catch {
+      return 0;
+    }
+  },
+  playbackInfo(): PlaybackInfo | null {
+    return lastInfo;
   },
   get audioError(): string | null {
     return importError ?? engine?.lastError ?? null;

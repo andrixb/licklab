@@ -9,7 +9,7 @@
 // sampler's buffers have decoded (guaranteed by the `ready` promises in
 // ./samplers — `Sampler.loaded` is only a boolean, never an awaitable).
 
-import type { AudioEngine, BandPlayback } from "../../application/ports.js";
+import type { AudioEngine, BandPlayback, BandPlayOpts } from "../../application/ports.js";
 import type { TimedEvent } from "../../domain/band.js";
 import { toPlaybackInstructions, voiceForInstrument, type PlaybackInstruction } from "./schedule.js";
 import { getBassSampler, getDrumSampler, getLickSampler, getPianoSampler } from "./samplers.js";
@@ -41,18 +41,21 @@ export function createToneEngine(): AudioEngine {
         const [bass, piano, drums, lick] = await Promise.all([getBassSampler(), getPianoSampler(), getDrumSampler(), getLickSampler()]);
         voices = { bass, piano, drums, lick };
 
-        // Jazz mix: comping sits under the soloist, upright forward, ride
+        // Jazz mix for a practice tool: the harmony must read clearly (piano
+        // level with the bass — you try licks over these changes), ride
         // present but not harsh. Velocities (schedule.ts) do per-hit work;
         // these are static voice balances.
         bass.volume.value = -8;
-        piano.volume.value = -11;
+        piano.volume.value = -7;
         drums.volume.value = -10;
         lick.volume.value = -3;
 
         // Room + glue, built from Tone's own effects (no new deps, still lazy).
-        // Mocked Tone in unit tests only provides Sampler/start/Transport, so
-        // every step is guarded — production gets the bus, tests keep the old
-        // direct wiring.
+        // Small per-voice sends into a shared room (bass nearly dry, drums
+        // wettest) + master compressor + safety limiter so hot choruses
+        // (crash + fill + comping) never flat-top. Mocked Tone in unit tests
+        // only provides Sampler/start/Transport, so every step is guarded —
+        // production gets the bus, tests keep the direct wiring.
         try {
           interface FxNode {
             connect(n: unknown): unknown;
@@ -61,24 +64,44 @@ export function createToneEngine(): AudioEngine {
           interface VerbNode extends FxNode {
             wet: { value: number };
           }
+          interface GainNode extends FxNode {
+            gain: { value: number };
+          }
           interface ToneFx {
             Compressor?: new (opts: unknown) => FxNode;
             Freeverb?: new (opts: unknown) => VerbNode;
+            Limiter?: new (ceiling: number) => FxNode;
+            Gain?: new (gain: number) => GainNode;
           }
           const TAny = T as unknown as ToneFx;
           const Comp = TAny.Compressor;
           const Verb = TAny.Freeverb;
-          const canBus = typeof Comp === "function" && typeof Verb === "function" && [bass, piano, drums, lick].every((s) => typeof (s as unknown as { connect?: unknown }).connect === "function");
+          const Lim = TAny.Limiter;
+          const Gain = TAny.Gain;
+          const samplers = [bass, piano, drums, lick] as unknown as FxNode[];
+          const canBus =
+            typeof Comp === "function" &&
+            typeof Verb === "function" &&
+            typeof Lim === "function" &&
+            typeof Gain === "function" &&
+            samplers.every((s) => typeof s.connect === "function");
           if (canBus) {
             const master = new Comp({ threshold: -18, ratio: 3, attack: 0.01, release: 0.2 });
-            const verb = new Verb({ roomSize: 0.65, dampening: 2500 });
+            const limiter = new Lim(-1.5);
+            const verb = new Verb({ roomSize: 0.45, dampening: 3200 });
             if (verb.wet) verb.wet.value = 1;
-            for (const s of [bass, piano, drums, lick] as unknown as { connect: (n: unknown) => unknown }[]) {
+            // Voice -> master (dry) + voice -> send -> room -> master.
+            const sends = [0.08, 0.16, 0.18, 0.14]; // bass, piano, drums, lick
+            for (let i = 0; i < samplers.length; i++) {
+              const s = samplers[i] as FxNode;
+              const send = new Gain(sends[i] ?? 0.15);
               s.connect(master);
-              s.connect(verb);
+              s.connect(send);
+              send.connect(verb);
             }
-            (verb as unknown as { connect: (n: unknown) => unknown }).connect(master);
-            (master as unknown as { toDestination: () => unknown }).toDestination();
+            (verb as unknown as FxNode).connect(master);
+            master.connect(limiter);
+            limiter.toDestination();
           } else {
             throw new Error("fx bus unavailable, direct wiring");
           }
@@ -125,8 +148,16 @@ export function createToneEngine(): AudioEngine {
     get lastError(): string | null {
       return loadError;
     },
-    play(events: readonly TimedEvent[], totalSeconds: number): BandPlayback {
-      const instructions = toPlaybackInstructions(events);
+    getPositionSeconds(): number {
+      try {
+        return tone?.getTransport().seconds ?? 0;
+      } catch {
+        return 0;
+      }
+    },
+    play(events: readonly TimedEvent[], totalSeconds: number, gainDb?: number, opts?: BandPlayOpts): BandPlayback {
+      void gainDb;
+      const instructions = toPlaybackInstructions(events, opts?.levels);
       let resolveDone!: () => void;
       const finished = new Promise<void>((r) => (resolveDone = r));
       let stopped = false;
@@ -145,10 +176,17 @@ export function createToneEngine(): AudioEngine {
           if (!voices) return;
           const vs = voices;
           for (const i of instructions) tr.schedule((time) => !stopped && triggerSampler(vs, i, time), i.timeSeconds);
-          tr.schedule(() => {
-            if (!stopped) cleanup(T);
-            resolveDone();
-          }, totalSeconds + 0.1);
+          if (opts?.loop) {
+            // Seamless chorus loop: no end-cleanup; stop() ends it.
+            tr.loop = true;
+            tr.loopEnd = totalSeconds;
+          } else {
+            tr.loop = false;
+            tr.schedule(() => {
+              if (!stopped) cleanup(T);
+              resolveDone();
+            }, totalSeconds + 0.1);
+          }
           tr.position = 0;
           void tr.start();
           playing = true;
@@ -160,7 +198,14 @@ export function createToneEngine(): AudioEngine {
       return {
         stop(): void {
           stopped = true;
-          if (tone) cleanup(tone);
+          if (tone) {
+            try {
+              tone.getTransport().loop = false;
+            } catch {
+              /* non-Tone runtimes (unit mock) */
+            }
+            cleanup(tone);
+          }
           playing = false;
           resolveDone();
         },

@@ -22,10 +22,11 @@ Decision: clean-room upgrade, no copied code/patterns/samples:
    ghost snares, chick hats, ride on-beats forward / off-beats light, comping under
    the bass, lick on top) with ±deterministic humanization; drum durations let the
    ride ring (0.5 s) and keep hats short. Timing grid untouched (timing contract).
-3. `adapters/tone/engine.ts`: Tone-only FX bus (Freeverb room send + master
-   Compressor, no new deps, still lazy) with jazz voice balances
-   (bass −8, piano −11, drums −10, lick −3); guarded fallback to direct wiring so
-   the unit-test Tone mock still passes.
+3. `adapters/tone/engine.ts`: Tone-only FX bus (small-room Freeverb send at
+   per-voice levels + master compressor + safety limiter, no new deps, still
+   lazy) with practice-tool balances (bass −8, piano −7 so the harmony reads,
+   drums −10, lick −3); guarded fallback to direct wiring so the unit-test
+   Tone mock still passes.
 Consequences: 42 band/audio tests green (7 new), full suite 235 green,
 typecheck/lint(deps)/build/budget/docs-check green, initial JS 384/400 KB —
 musicality improves with zero interface churn (same `BandEvent`/`AudioEngine` port).

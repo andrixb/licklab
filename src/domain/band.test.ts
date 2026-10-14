@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from "vitest";
 import * as fc from "fast-check";
-import { BAND_STYLES, buildChorus, compingVoicings, drumGrid, placeLickOnBeat, walkingLine, type BandPart } from "./band.js";
+import { BAND_STYLES, buildChorus, chordAtBeat, compingVoicings, drumGrid, placeLickOnBeat, walkingLine, type BandPart } from "./band.js";
 import { flattenProgression, parseProgressionInput, PRESETS } from "./progression.js";
 import { parseChordSymbol } from "./chords.js";
 import { pitchClassOf, midiOf } from "./pitch.js";
@@ -144,5 +144,18 @@ describe("band.musicality (clean-room section model)", () => {
     const grid = drumGrid(flat, "swing");
     const fillSnares = grid.filter((e) => e.drum === "snare" && e.timeBeats >= 12 && e.timeBeats < 16);
     expect(fillSnares.length).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe("band.chordAtBeat (playhead lookup)", () => {
+  it("finds the sounding chord; null outside the chorus", () => {
+    const flat = flatOf("Dm7 G7 | Cmaj7 |");
+    expect(chordAtBeat(flat, 0)?.chord.symbol).toBe("Dm7");
+    expect(chordAtBeat(flat, 2)?.chord.symbol).toBe("G7");
+    expect(chordAtBeat(flat, 4)?.chord.symbol).toBe("Cmaj7");
+    expect(chordAtBeat(flat, 7.99)?.chord.symbol).toBe("Cmaj7");
+    expect(chordAtBeat(flat, -0.5)).toBeNull();
+    expect(chordAtBeat(flat, 8)).toBeNull();
+    expect(chordAtBeat([], 0)).toBeNull();
   });
 });

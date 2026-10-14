@@ -40,7 +40,7 @@ const iiviLick = validLick({
 describe("playback use cases (fake engine, no audio)", () => {
   it("playChorus schedules band events starting after the count-in", async () => {
     const engine = createFakeAudioEngine();
-    playChorus(engine, bars, opts);
+    await playChorus(engine, bars, opts);
     const played = engine.played[0]!;
     expect(played.length).toBeGreaterThan(0);
     expect(played.every((e) => e.timeSeconds >= 2 - 1e-9)).toBe(true); // 4 beats @120 = 2s count-in
@@ -48,7 +48,7 @@ describe("playback use cases (fake engine, no audio)", () => {
   it("auditionLick places the lick at beat 0 window (count-in offset)", async () => {
     const engine = createFakeAudioEngine();
     const segments = analyzeProgression(prog);
-    const playback = auditionLick(engine, bars, segments, iiviLick, opts);
+    const playback = await auditionLick(engine, bars, segments, iiviLick, opts);
     expect(playback).not.toBeNull();
     const lickEvents = engine.played[0]!.filter((e) => e.voice === "lick");
     expect(lickEvents.length).toBeGreaterThan(0);
@@ -68,7 +68,7 @@ describe("playback use cases (fake engine, no audio)", () => {
         function: "turnaround",
       },
     });
-    expect(auditionLick(engine, bars, analyzeProgression(prog), turnaround, opts)).toBeNull();
+    expect(await auditionLick(engine, bars, analyzeProgression(prog), turnaround, opts)).toBeNull();
   });
   it("playSoloChorus stacks multiple placed licks", async () => {
     const engine = createFakeAudioEngine();
@@ -79,13 +79,13 @@ describe("playback use cases (fake engine, no audio)", () => {
       pattern: [{ steps: 0, semitones: 0, octaveOffset: 0, startBeat: 0, durationBeats: 4 }],
       harmonicContext: { chords: [{ symbol: "Cmaj7", beats: 4 }], originalKey: "C", function: "static major" },
     });
-    playSoloChorus(engine, bars, segments, [{ lick: iiviLick, segmentIndex: 0 }, { lick: second, segmentIndex: 0 }], opts);
+    await playSoloChorus(engine, bars, segments, [{ lick: iiviLick, segmentIndex: 0 }, { lick: second, segmentIndex: 0 }], opts);
     const lickVoices = engine.played[0]!.filter((e) => e.voice === "lick");
     expect(lickVoices.length).toBeGreaterThan(3);
   });
   it("playTwelveKeys spans 12 transpositions of the context", async () => {
     const engine = createFakeAudioEngine();
-    playTwelveKeys(engine, iiviLick, opts);
+    await playTwelveKeys(engine, iiviLick, opts);
     const events = engine.played[0]!;
     const roots = new Set<number>();
     for (const e of events.filter((x) => x.voice === "bass" && Math.abs(x.timeSeconds % 6) < 1e-6)) {

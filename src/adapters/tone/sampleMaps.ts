@@ -49,18 +49,29 @@ export const BASS_SAMPLE_MAP = {
 } as const;
 
 // Drums: General MIDI note -> file. Several GM numbers alias the same file so
-// the domain's alternate placements (e.g. 35/36 for kick) all sound.
+// the domain's alternate placements (e.g. 35/36 for kick) all sound. The jmove
+// adapter's extras alias to family voices: side-stick (37) + toms
+// (43/45/47/50) to snare until tom samples join the pack, china/splash (52/55)
+// to crash, ride-bell (53) to ride.
 export const DRUM_SAMPLE_MAP = {
   36: "Kick",
   35: "Kick",
   38: "Snare",
+  37: "Snare",
   40: "Snare",
+  43: "Snare",
+  45: "Snare",
+  47: "Snare",
+  50: "Snare",
   42: "HiHat",
   44: "HiHat",
   46: "HiHat",
   51: "Ride",
+  53: "Ride",
   59: "Ride",
   49: "Crash",
+  52: "Crash",
+  55: "Crash",
   57: "Crash",
 } as const;
 

@@ -5,7 +5,10 @@
   combined work stays GPL; keep the LGPL linking disclosure), CC0 / CC BY 3.0
   sample data. **Forbidden**: GPL-2.0-only code (incompatible with GPL-3.0) —
   this rules out RubberBand for time-stretch; M5 must use SoundTouch (LGPL) or
-  a non-copyleft engine.
+  a non-copyleft engine. **jmove**: `@jmove/generator` (MIT, pinned exact) is
+  a compatible dep — MIT copyright notice ships in its package; our UI is
+  original (no copied layout/assets from jmove.it.com); JJazzLab (LGPL-2.1)
+  concepts only, never code.
 - **Samples**: VSCO 2 CE (CC0, incl. double bass), Virtuosity Drums (CC0),
   Salamander Grand (CC BY 3.0 — attribution page required). Ship curated
   subsets only. Verovio LGPL-3.0-or-later (linking disclosure). Time-stretch:

@@ -27,6 +27,11 @@ export interface BandEvent {
   readonly midi?: number;
   readonly drum?: DrumRole;
   readonly accent?: boolean;
+  /**
+   * Explicit 0..1 velocity from the pattern source (e.g. the jmove adapter).
+   * When absent the Tone schedule mapping derives velocity from role+accent.
+   */
+  readonly velocity?: number;
 }
 
 export interface BandPart {
@@ -88,6 +93,17 @@ function chordAt(flat: readonly FlatChord[], beat: number): ChordUnder {
     acc += c.beats;
   }
   throw new Error("empty progression");
+}
+
+/**
+ * Chord sounding at `beat` (for playhead highlight). Pure lookup; returns
+ * null outside the chorus so the UI can render an idle state.
+ */
+export function chordAtBeat(flat: readonly FlatChord[], beat: number): ChordUnder | null {
+  if (flat.length === 0 || !(beat >= 0)) return null;
+  const total = flat.reduce((n, c) => n + c.beats, 0);
+  if (beat >= total) return null;
+  return chordAt(flat, beat);
 }
 
 const parsed = (symbol: string) => parseChordSymbol(symbol);
@@ -220,7 +236,7 @@ export function compingVoicings(flat: readonly FlatChord[], style: BandStyle): B
       else if (section === 2) hits = [0, 2 + 2 / 3];
       else if (section === 3) hits = [0];
       else hits = [0, 2];
-      dur = 1.1;
+      dur = 1.6;
     }
     for (const off of hits) {
       if (off >= c.beats - 1e-9 && off > 0) continue;

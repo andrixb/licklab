@@ -8,6 +8,7 @@
 // with no Web Audio (spec: never test scheduling by listening).
 
 import type { TimedEvent, Voice } from "../../domain/band.js";
+import type { BandLevels } from "../../application/ports.js";
 
 export type Instrument = "bass" | "piano" | "kick" | "snare" | "hat" | "ride" | "rideBell" | "crash" | "lick";
 
@@ -95,9 +96,9 @@ function drumVelocity(instrument: Instrument, accent: boolean, e: TimedEvent): n
     case "ride":
       return (isOffBeat ? 0.55 : 0.78) + v;
     case "rideBell":
-      return 0.9 + v * 0.5;
+      return 0.85 + v * 0.5;
     case "crash":
-      return 0.9;
+      return 0.8;
     default:
       return 0.55 + v * 0.5;
   }
@@ -107,29 +108,36 @@ function pitchedVelocity(voice: Voice, accent: boolean | undefined, e: TimedEven
   const v = humanize(e.timeSeconds, 0.04, e.midi ?? 0);
   if (voice === "lick") return 0.96 + v * 0.5;
   if (voice === "bass") return (accent ? 0.88 : 0.72) + v;
-  // piano comping sits under the soloist
-  return (accent ? 0.68 : 0.58) + v;
+  // Comping rides above the bass so shells read through the rhythm section.
+  return (accent ? 0.74 : 0.64) + v;
 }
 
-export function toPlaybackInstructions(events: readonly TimedEvent[]): PlaybackInstruction[] {
+function clampVelocity(v: number): number {
+  return Math.min(1, Math.max(0.05, v));
+}
+
+export function toPlaybackInstructions(events: readonly TimedEvent[], levels?: BandLevels): PlaybackInstruction[] {
   return events.map((e) => {
     if (e.voice === "drums") {
       const instrument = DRUM_INSTRUMENT[e.drum ?? "kick"] ?? "kick";
+      const base = e.velocity ?? drumVelocity(instrument, e.accent ?? false, e);
       return {
         instrument,
         note: e.midi ?? 36,
         timeSeconds: e.timeSeconds,
         durationSeconds: drumDuration(instrument),
-        velocity: drumVelocity(instrument, e.accent ?? false, e),
+        velocity: clampVelocity(base * (levels?.drums ?? 1)),
       };
     }
     const voice: Voice = e.voice;
+    const base = e.velocity ?? pitchedVelocity(voice, e.accent, e);
+    const level = voice === "bass" ? (levels?.bass ?? 1) : voice === "piano" ? (levels?.piano ?? 1) : (levels?.lick ?? 1);
     return {
       instrument: voice === "bass" ? "bass" : voice === "piano" ? "piano" : "lick",
       note: e.midi ?? 60,
       timeSeconds: e.timeSeconds,
       durationSeconds: Math.max(e.durationSeconds, 0.25),
-      velocity: pitchedVelocity(voice, e.accent, e),
+      velocity: clampVelocity(base * level),
     };
   });
 }

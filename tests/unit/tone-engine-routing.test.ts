@@ -43,6 +43,9 @@ const transport = {
   scheduled: [] as Scheduled[],
   state: "stopped",
   statesSeen: ["stopped"] as string[],
+  loop: false,
+  loopEnd: 0,
+  seconds: 0,
   cancel(): void {},
   pause(): void {
     transport.state = "paused";
@@ -82,6 +85,9 @@ describe("tone engine routing", () => {
     transport.scheduled = [];
     transport.state = "stopped";
     transport.statesSeen = ["stopped"];
+    transport.loop = false;
+    transport.loopEnd = 0;
+    transport.seconds = 0;
     vi.resetModules();
   });
 
@@ -129,5 +135,32 @@ describe("tone engine routing", () => {
     expect(transport.statesSeen).toContain("started");
     expect(transport.state).toBe("paused");
     expect(engine.isPlaying).toBe(false);
+  });
+
+  it("loop mode arms the transport loop and reports position", async () => {
+    const { createToneEngine } = await import("../../src/adapters/tone/engine.js");
+    const engine = createToneEngine();
+    const playback = engine.play([timed("bass", 40, 0.5)], 2, undefined, { loop: true });
+    await new Promise((r) => setTimeout(r, 10));
+    expect(transport.loop).toBe(true);
+    expect(transport.loopEnd).toBe(2);
+    transport.seconds = 1.25;
+    expect(engine.getPositionSeconds()).toBe(1.25);
+    playback.stop();
+    await playback.finished;
+    expect(transport.loop).toBe(false);
+    expect(engine.getPositionSeconds()).toBe(1.25);
+  });
+
+  it("mixer levels reach the triggered velocities", async () => {
+    const { createToneEngine } = await import("../../src/adapters/tone/engine.js");
+    MockSampler.instances = [];
+    transport.scheduled = [];
+    const engine = createToneEngine();
+    const playback = engine.play([timed("bass", 40, 0.5)], 2, undefined, { levels: { bass: 0.5 } });
+    await playback.finished;
+    const hit = MockSampler.instances.flatMap((s) => s.triggered);
+    expect(hit).toHaveLength(1);
+    expect(hit[0]!.velocity).toBeLessThan(0.8);
   });
 });
