@@ -92,8 +92,6 @@ domain/application; no copyrighted fixtures; no audio/scores uploaded.
 
 ## Never do
 
-- Never scrape/crawl realbook.site; link-out + user files only.
-- Never extract audio from YouTube (IFrame playback + loops only).
 - Never upload copyrighted scores or audio to D1; chord changes+metadata only.
 - Never run destructive SQL against production D1; previews use preview DB.
 - Never commit secrets; never store passwords; never log tokens/session IDs/emails.
