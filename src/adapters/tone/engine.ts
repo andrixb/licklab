@@ -41,6 +41,17 @@ export function createToneEngine(): AudioEngine {
         const [bass, piano, drums, lick] = await Promise.all([getBassSampler(), getPianoSampler(), getDrumSampler(), getLickSampler()]);
         voices = { bass, piano, drums, lick };
 
+        // Route every voice to the speakers: a Sampler's output is an
+        // UNCONNECTED gain node until toDestination() is called, so without
+        // these four lines the transport runs, the notes fire, the UI says
+        // "playing" — and nothing is audible. (This is exactly the M3 synth
+        // engine's toDestination wiring, kept when M3.5 swapped synths for
+        // Samplers.)
+        bass.toDestination();
+        piano.toDestination();
+        drums.toDestination();
+        lick.toDestination();
+
         // Set default volumes
         bass.volume.value = -6;
         piano.volume.value = -6;
