@@ -247,6 +247,29 @@ function getEngine(): Promise<AudioEngine> {
 let currentPlayback: BandPlayback | null = null;
 const playListeners = new Set<() => void>();
 
+/**
+ * A newer build finished installing in the background (service worker update).
+ * Reloading mid-chorus would cut the music, so reload now if idle, otherwise
+ * right after the current playback ends. Without this a long-lived practice
+ * tab keeps running pruned chunks forever ("plays" old code that no longer
+ * matches the deployed samples).
+ */
+let updatePending = false;
+function maybeReloadForUpdate(): void {
+  if (updatePending && currentPlayback === null) {
+    try {
+      location.reload();
+    } catch {
+      // non-browser test runtimes; ignore
+    }
+  }
+}
+/** Called by the PWA update registration when a new version is ready. */
+export function noteAppUpdateReady(): void {
+  updatePending = true;
+  maybeReloadForUpdate();
+}
+
 async function runPlayback(make: (engine: AudioEngine) => BandPlayback | null): Promise<boolean> {
   currentPlayback?.stop();
   let engine: AudioEngine;
@@ -271,6 +294,7 @@ async function runPlayback(make: (engine: AudioEngine) => BandPlayback | null): 
   await playback.finished;
   if (currentPlayback === playback) currentPlayback = null;
   for (const l of playListeners) l();
+  maybeReloadForUpdate();
   return true;
 }
 
@@ -303,6 +327,7 @@ export const workspace = {
     currentPlayback?.stop();
     currentPlayback = null;
     for (const l of playListeners) l();
+    maybeReloadForUpdate();
   },
   get isPlaying(): boolean {
     // Read the engine, not local state: a failed sample load must not leave the
