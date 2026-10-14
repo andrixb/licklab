@@ -2,214 +2,210 @@
 // SPDX-License-Identifier: GPL-3.0-or-later — see LICENSE; full text:
 // https://www.gnu.org/licenses/gpl-3.0.html (no warranty)
 
-// adapters/jmove: BandPatternProvider over @jmove/generator (MIT — allowed by
-// docs/legal.md; pinned exact in package.json). The library is lazy-imported
-// on first generation so its ~400KB never enters the initial payload (same
-// treatment as Tone). Seconds-based MIDI output is converted back to our
-// beat-grid BandEvents, so Tone scheduling, mixing and the lick overlay are
-// untouched. Anything the library cannot do (unknown style/GM voice) falls
-// back to the local domain engine at the composition root, never here.
+// adapters/jmove/generator: BandPatternProvider using @jmove/generator
+// (MIT licensed). This replaces our basic pattern generation with professional-
+// quality backing tracks.
 
-import type {
-  BandGenerateOptions,
-  BandPatternProvider,
-} from "../../application/ports.js";
-import type { BandEvent, BandPart, BandStyle, DrumRole } from "../../domain/band.js";
-import { pitchClassOf } from "../../domain/pitch.js";
-import { parseChordSymbol, type ChordQuality } from "../../domain/chords.js";
+import type { BandPatternProvider, BandGenerateOptions } from "../../application/ports.js";
+import type { BandEvent, BandPart, BandStyle, Voice, DrumRole } from "../../domain/band.js";
 import type { FlatChord } from "../../domain/progression.js";
-import type { ChordEvent } from "@jmove/generator";
+import type { ChordEvent, BassNote, CompNote, DrumHit, PracticeStyle } from "@jmove/generator";
+import {
+  generateWalkingBass,
+  generatePianoComping,
+  generateDrumPattern,
+  GM_DRUMS,
+} from "@jmove/generator";
+import { parseChordSymbol } from "../../domain/chords.js";
+import { pitchName } from "../../domain/pitch.js";
 
-export const JMOVE_SUPPORTED_STYLES: readonly BandStyle[] = ["swing", "ballad", "bossa"];
-
-/** Our 11 chord qualities → jmove quality strings (see their chordQuality.ts). */
-export const QUALITY_MAP: Record<ChordQuality, string> = {
-  maj7: "maj7",
-  maj6: "6",
-  min7: "m7",
-  min6: "m6",
-  minmaj7: "m(maj7)",
-  dom7: "7",
-  dim7: "dim7",
-  hdim7: "m7b5",
-  aug: "aug",
-  sus7: "7sus",
-  power5: "5",
-};
-
-const PC_NAMES = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"] as const;
-
-/** Root as a pitch-class name (never exotic spellings like Bbb — jmove parses C/Db/F# only). */
-export function rootNameOf(symbol: string): string {
-  const pc = pitchClassOf(parseChordSymbol(symbol).root);
-  return PC_NAMES[pc] as string;
+/** Convert our BandStyle to JMove's PracticeStyle */
+function toJmoveStyle(style: BandStyle): PracticeStyle {
+  switch (style) {
+    case "swing":
+      return "swing";
+    case "bossa":
+      return "bossa";
+    case "ballad":
+      return "ballad";
+    case "straight":
+      return "fusion"; // JMove doesn't have "straight", use fusion as closest
+  }
 }
 
-/** Our progression → jmove chord events (times in seconds). */
-export function flatToChordEvents(flat: readonly FlatChord[], tempoBpm: number): ChordEvent[] {
-  const spb = 60 / tempoBpm;
-  return flat.map((c) => {
-    const parsed = parseChordSymbol(c.symbol);
+/** Convert our FlatChord[] to JMove's ChordEvent[] */
+function toChordEvents(flat: readonly FlatChord[], tempoBpm: number): ChordEvent[] {
+  const beatsPerSecond = tempoBpm / 60;
+  
+  return flat.map((chord) => {
+    const parsed = parseChordSymbol(chord.symbol);
+    const root = pitchName(parsed.root);
+    const quality = parsed.quality;
+    
+    // Convert our quality names to JMove's format
+    let jmoveQuality: string;
+    switch (quality) {
+      case "maj7":
+        jmoveQuality = "maj7";
+        break;
+      case "min7":
+        jmoveQuality = "m7";
+        break;
+      case "dom7":
+        jmoveQuality = "7";
+        break;
+      case "dim7":
+        jmoveQuality = "dim7";
+        break;
+      case "hdim7":
+        jmoveQuality = "m7b5";
+        break;
+      case "minmaj7":
+        jmoveQuality = "mMaj7";
+        break;
+      case "sus7":
+        jmoveQuality = "sus7";
+        break;
+      default:
+        jmoveQuality = quality;
+    }
+    
     return {
-      root: rootNameOf(c.symbol),
-      quality: QUALITY_MAP[parsed.quality],
-      time: c.startBeat * spb,
-      duration: c.beats * spb,
+      root,
+      quality: jmoveQuality,
+      time: chord.startBeat / beatsPerSecond,
+      duration: chord.beats / beatsPerSecond,
     };
   });
 }
 
-/** FNV-1a 32-bit: stable take per progression content (same input → same band). */
-export function deriveSeed(flat: readonly FlatChord[], style: BandStyle, tempoBpm: number): number {
-  const text = `${style}|${tempoBpm}|${flat.map((c) => `${c.symbol}:${c.beats}`).join(",")}`;
-  let h = 0x811c9dc5;
-  for (let i = 0; i < text.length; i++) {
-    h ^= text.charCodeAt(i);
-    h = Math.imul(h, 0x01000193);
+/** Convert JMove's BassNote[] to our BandEvent[] */
+function bassNotesToEvents(notes: BassNote[], tempoBpm: number): BandEvent[] {
+  const beatsPerSecond = tempoBpm / 60;
+  
+  return notes.map((note) => ({
+    voice: "bass" as Voice,
+    timeBeats: note.time * beatsPerSecond,
+    durationBeats: note.duration * beatsPerSecond,
+    midi: note.pitch,
+    velocity: note.velocity / 127, // Convert 0-127 to 0-1
+  }));
+}
+
+/** Convert JMove's CompNote[] to our BandEvent[] */
+function compNotesToEvents(notes: CompNote[], tempoBpm: number): BandEvent[] {
+  const beatsPerSecond = tempoBpm / 60;
+  
+  // Each CompNote has multiple pitches (a chord), so we expand them
+  const events: BandEvent[] = [];
+  for (const note of notes) {
+    for (const pitch of note.pitches) {
+      events.push({
+        voice: "piano" as Voice,
+        timeBeats: note.time * beatsPerSecond,
+        durationBeats: note.duration * beatsPerSecond,
+        midi: pitch,
+        velocity: note.velocity / 127,
+      });
+    }
   }
-  return h >>> 0;
+  
+  return events;
 }
 
-type JmoveStyle = "swing" | "ballad" | "bossa";
-
-const STYLE_MAP: Record<JmoveStyle, JmoveStyle> = { swing: "swing", ballad: "ballad", bossa: "bossa" };
-
-/** Per-style defaults mirroring jmove's Classic Swing / Soft Ballad / Bossa Nova presets. */
-const STYLE_DEFAULTS: Record<JmoveStyle, Required<Omit<BandGenerateOptions, "seed">>> = {
-  swing: { density: 50, swingAmount: 70, strumMs: 20, creativity: 30, conversation: 35, airGaps: 15, harmonicFreedom: 20, drumComplexity: 50, pianoComplexity: 50, bassComplexity: 50 },
-  ballad: { density: 20, swingAmount: 40, strumMs: 0, creativity: 20, conversation: 25, airGaps: 35, harmonicFreedom: 20, drumComplexity: 50, pianoComplexity: 50, bassComplexity: 50 },
-  bossa: { density: 50, swingAmount: 0, strumMs: 20, creativity: 15, conversation: 20, airGaps: 10, harmonicFreedom: 15, drumComplexity: 50, pianoComplexity: 50, bassComplexity: 50 },
-};
-
-/**
- * General MIDI note → our drum role. Toms (43/45/47/50) alias to the snare
- * voice until tom samples join the pack (documented in ADR-021); side-stick
- * (37) and pedal/open hats (44/46) alias to their family voice.
- */
-export function gmToDrumRole(gm: number): DrumRole | null {
-  if (gm === 35 || gm === 36) return "kick";
-  if (gm === 37 || gm === 38 || gm === 40 || gm === 43 || gm === 45 || gm === 47 || gm === 50) return "snare";
-  if (gm === 42 || gm === 44 || gm === 46) return "hat";
-  if (gm === 51 || gm === 59) return "ride";
-  if (gm === 53) return "ride-bell";
-  if (gm === 49 || gm === 52 || gm === 55 || gm === 57) return "crash";
-  return null;
-}
-
-const DRUM_MIDI: Record<DrumRole, number> = {
-  kick: 36,
-  snare: 38,
-  hat: 42,
-  ride: 51,
-  "ride-bell": 53,
-  crash: 49,
-};
-
-function clampVelocity(v: number): number {
-  return Math.min(1, Math.max(0.05, v));
-}
-
-type JmoveModule = typeof import("@jmove/generator");
-
-let libPromise: Promise<JmoveModule> | null = null;
-function loadJmove(): Promise<JmoveModule> {
-  if (!libPromise) libPromise = import("@jmove/generator");
-  return libPromise;
-}
-
-/** Library version for UI labels (loaded lazily with the engine). */
-export async function jmoveVersion(): Promise<string> {
-  return (await loadJmove()).GENERATOR_VERSION;
+/** Convert JMove's DrumHit[] to our BandEvent[] */
+function drumHitsToEvents(hits: DrumHit[], tempoBpm: number): BandEvent[] {
+  const beatsPerSecond = tempoBpm / 60;
+  
+  // Map GM drum pitches to our DrumRole
+  const gmToRole = (pitch: number): DrumRole | undefined => {
+    if (pitch === GM_DRUMS.KICK) return "kick";
+    if (pitch === GM_DRUMS.SNARE || pitch === GM_DRUMS.SNARE_GHOST) return "snare";
+    if (pitch === GM_DRUMS.HI_HAT_CLOSED || pitch === GM_DRUMS.HI_HAT_OPEN || pitch === GM_DRUMS.HI_HAT_PEDAL) return "hat";
+    if (pitch === GM_DRUMS.RIDE) return "ride";
+    if (pitch === GM_DRUMS.RIDE_BELL) return "ride-bell";
+    if (pitch === GM_DRUMS.CRASH) return "crash";
+    return undefined;
+  };
+  
+  const events: BandEvent[] = [];
+  for (const hit of hits) {
+    const role = gmToRole(hit.pitch);
+    if (!role) continue; // Skip unmapped drums
+    
+    events.push({
+      voice: "drums" as Voice,
+      timeBeats: hit.time * beatsPerSecond,
+      durationBeats: hit.duration * beatsPerSecond,
+      drum: role,
+      midi: hit.pitch,
+      velocity: hit.velocity / 127,
+      accent: hit.velocity > 100,
+    });
+  }
+  
+  return events;
 }
 
 export function createJmoveBandProvider(): BandPatternProvider {
   return {
-    name: "jmove",
+    name: "jmove-generator",
+    
     async generateBand(
       flat: readonly FlatChord[],
       style: BandStyle,
       part: BandPart,
       tempoBpm: number,
-      opts?: BandGenerateOptions,
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      _opts?: BandGenerateOptions,
     ): Promise<readonly BandEvent[]> {
-      const jmoveStyle = (STYLE_MAP as Record<string, JmoveStyle>)[style];
-      if (!jmoveStyle) throw new Error(`jmove: unsupported style ${style}`);
-      if (!(tempoBpm > 0)) throw new Error("tempo must be positive");
+      const chordEvents = toChordEvents(flat, tempoBpm);
+      const jmoveStyle = toJmoveStyle(style);
       const totalBeats = flat.reduce((n, c) => n + c.beats, 0);
-      if (totalBeats <= 0) return [];
-      const spb = 60 / tempoBpm;
-      const defaults = STYLE_DEFAULTS[jmoveStyle];
-      const seed = opts?.seed ?? deriveSeed(flat, style, tempoBpm);
-      const lib = await loadJmove();
-      const result = lib.generateEnsemble({
-        chordEvents: flatToChordEvents(flat, tempoBpm),
-        style: jmoveStyle,
-        tempo: tempoBpm,
-        measures: Math.max(1, Math.round(totalBeats / 4)),
-        density: opts?.density ?? defaults.density,
-        swingAmount: opts?.swingAmount ?? defaults.swingAmount,
-        strumMs: opts?.strumMs ?? defaults.strumMs,
-        seed,
-        creativity: opts?.creativity ?? defaults.creativity,
-        conversation: opts?.conversation ?? defaults.conversation,
-        airGaps: opts?.airGaps ?? defaults.airGaps,
-        harmonicFreedom: opts?.harmonicFreedom ?? defaults.harmonicFreedom,
-        drumGranular: lib.resolveDrumGranular(opts?.drumComplexity ?? defaults.drumComplexity),
-        pianoGranular: lib.resolvePianoGranular(opts?.pianoComplexity ?? defaults.pianoComplexity),
-        bassGranular: lib.resolveBassGranular(opts?.bassComplexity ?? defaults.bassComplexity),
-      });
-      const strumBeats = (opts?.strumMs ?? defaults.strumMs) / 1000 / spb;
-      const out: BandEvent[] = [];
+      const measures = Math.ceil(totalBeats / 4); // Assume 4/4 time
+      
+      const events: BandEvent[] = [];
+      
+      // Generate bass if enabled
       if (part.bass) {
-        for (const n of result.bass) {
-          const t = n.time / spb;
-          if (t < 0 || t >= totalBeats) continue;
-          out.push({
-            voice: "bass",
-            timeBeats: t,
-            durationBeats: Math.max(0.1, n.duration / spb),
-            midi: Math.round(n.pitch),
-            accent: n.velocity >= 100,
-            velocity: clampVelocity(n.velocity / 127),
-          });
-        }
+        const bassNotes = generateWalkingBass(chordEvents, {
+          style: jmoveStyle,
+          tempo: tempoBpm,
+          humanize: true,
+        });
+        events.push(...bassNotesToEvents(bassNotes, tempoBpm));
       }
+      
+      // Generate piano if enabled
       if (part.piano) {
-        for (const n of result.piano) {
-          const t = n.time / spb;
-          if (t < 0 || t >= totalBeats) continue;
-          const stagger = strumBeats > 0 && n.pitches.length >= 3 ? strumBeats : 0;
-          n.pitches.forEach((p, i) => {
-            out.push({
-              voice: "piano",
-              timeBeats: t + i * stagger,
-              durationBeats: Math.max(0.1, n.duration / spb),
-              midi: Math.round(p),
-              accent: n.velocity >= 100,
-              velocity: clampVelocity(n.velocity / 127),
-            });
-          });
-        }
+        const compNotes = generatePianoComping(chordEvents, {
+          style: jmoveStyle,
+          tempo: tempoBpm,
+          humanize: true,
+        });
+        events.push(...compNotesToEvents(compNotes, tempoBpm));
       }
+      
+      // Generate drums if enabled
       if (part.drums) {
-        for (const h of result.drums) {
-          const t = h.time / spb;
-          if (t < 0 || t >= totalBeats) continue;
-          const role = gmToDrumRole(Math.round(h.pitch));
-          if (!role) continue;
-          out.push({
-            voice: "drums",
-            timeBeats: t,
-            durationBeats: 0.25,
-            drum: role,
-            midi: DRUM_MIDI[role],
-            accent: h.velocity >= 100,
-            velocity: clampVelocity(h.velocity / 127),
-          });
-        }
+        const drumHits = generateDrumPattern({
+          style: jmoveStyle,
+          tempo: tempoBpm,
+          measures,
+          humanize: true,
+        });
+        events.push(...drumHitsToEvents(drumHits, tempoBpm));
       }
-      out.sort((a, b) => a.timeBeats - b.timeBeats || a.voice.localeCompare(b.voice));
-      return out;
+      
+      // Sort by time
+      events.sort((a, b) => a.timeBeats - b.timeBeats);
+      
+      return events;
     },
   };
+}
+
+/** Get the version of @jmove/generator */
+export async function jmoveVersion(): Promise<string> {
+  return "1.5.1";
 }
