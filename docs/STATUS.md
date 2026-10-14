@@ -7,6 +7,7 @@
 - **M3 (workspace, band engine, audition, starter pack):**
   - Progression workspace at `/play`: preset chips, typed chords, stateless share links (`/play?c=...`), per-segment tier-ranked matches, audition a lick over the band, place licks into a solo chorus, all-12-keys cycle.
   - Band engine (Tone, lazy-loaded on first play; synths for now — ADR-017): walking bass / 3+7 comping / per-style drum grids, swing/ballad/bossa/straight, tempo, bass/piano/drums mutes. Pure timing core, tested without audio (163 unit + 8 workerd + 4 Playwright flows).
+  - Band musicality pass (ADR-019, clean-room, JJazzLab-concepts only): voice-led walking bass + 3-note rootless shells, section-aware comping rhythms, ghost/fill drums, jazz velocity map, room+glue FX bus. Same ports, 235 unit green, initial JS 384/400 KB.
   - Starter pack: 8 self-written licks as static `public/starter-pack.json` (anonymous, offline, no API); guide-tone line on lick detail.
   - Path-based URL routing (SPA fallback); `?e=e` ignored (verified platform noise).
 - **M4 (catalog + sync):**

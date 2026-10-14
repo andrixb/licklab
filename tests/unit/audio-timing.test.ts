@@ -63,6 +63,27 @@ describe("tone scheduling mapping", () => {
     expect(instr.some((i) => i.instrument === "lick")).toBe(true);
     expect(instr.every((i) => ["bass", "piano", "drums", "lick"].includes(voiceForInstrument(i.instrument)))).toBe(true);
   });
+  it("jazz balances: feathered kick quiet, ride off-beats lighter, piano under bass", () => {
+    const plan = buildChorus(flat, "swing", part);
+    const instr = toPlaybackInstructions(toTimedEvents(plan, 120));
+    const kicks = instr.filter((i) => i.instrument === "kick" && i.velocity < 1);
+    expect(kicks.length).toBeGreaterThan(0);
+    for (const k of kicks) expect(k.velocity).toBeLessThan(0.5);
+    const rides = instr.filter((i) => i.instrument === "ride");
+    const offBeat = rides.filter((i) => Math.abs((i.timeSeconds * 2) % 1 - 1 / 3) < 0.2);
+    const onBeat = rides.filter((i) => !offBeat.includes(i));
+    expect(Math.max(...offBeat.map((i) => i.velocity))).toBeLessThan(Math.max(...onBeat.map((i) => i.velocity)));
+    const pianoV = instr.filter((i) => i.instrument === "piano").map((i) => i.velocity);
+    const bassV = instr.filter((i) => i.instrument === "bass").map((i) => i.velocity);
+    expect(Math.max(...pianoV)).toBeLessThan(Math.max(...bassV));
+  });
+  it("drum durations let the ride ring and keep the hat short", () => {
+    const plan = buildChorus(flat, "swing", { bass: false, piano: false, drums: true, tempoBpm: 120 });
+    const instr = toPlaybackInstructions(toTimedEvents(plan, 120));
+    const ride = instr.find((i) => i.instrument === "ride");
+    const hat = instr.find((i) => i.instrument === "hat");
+    expect(ride!.durationSeconds).toBeGreaterThan(hat!.durationSeconds);
+  });
 });
 
 describe("FakeAudioEngine (port contract)", () => {

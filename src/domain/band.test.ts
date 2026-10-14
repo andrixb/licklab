@@ -100,3 +100,49 @@ describe("band.buildChorus", () => {
     expect(lickNotes[0]!.timeBeats).toBe(2);
   });
 });
+
+describe("band.musicality (clean-room section model)", () => {
+  it("bass never repeats the same pitch twice in a row, stays in register", () => {
+    const flat = flatOf("Dm7 | G7 | Cmaj7 | A7 |");
+    const line = walkingLine(flat);
+    for (let i = 1; i < line.length; i++) expect(line[i]!.midi).not.toBe(line[i - 1]!.midi);
+    for (const e of line) {
+      expect(e.midi).toBeGreaterThanOrEqual(28);
+      expect(e.midi).toBeLessThanOrEqual(60);
+    }
+  });
+  it("odd-bar approach comes chromatically from above the next root", () => {
+    const flat = flatOf("Dm7 | G7 | Cmaj7 | G7 |");
+    const line = walkingLine(flat);
+    // beat 7 is the last beat of the bar-1 G7, approaching Cmaj7 (C) from above.
+    const approach = line.find((e) => e.timeBeats === 7);
+    const nextRootPc = pitchClassOf(parseChordSymbol("Cmaj7").root);
+    expect(pitchClassOf(approach!.pitch!)).toBe((nextRootPc + 1) % 12);
+  });
+  it("piano plays 3-note voice-led shells with minimal top motion", () => {
+    const flat = flatOf("Dm7 | G7 | Cmaj7 |");
+    const evts = compingVoicings(flat, "swing");
+    expect(evts.length % 3).toBe(0);
+    for (const e of evts) {
+      expect(midiOf(e.pitch!)).toBeGreaterThanOrEqual(50);
+      expect(midiOf(e.pitch!)).toBeLessThanOrEqual(80);
+    }
+    const tops: number[] = [];
+    const byTime = new Map<number, number[]>();
+    for (const e of evts) byTime.set(e.timeBeats, [...(byTime.get(e.timeBeats) ?? []), e.midi ?? 0]);
+    for (const [, midis] of [...byTime.entries()].sort((a, b) => a[0] - b[0])) tops.push(Math.max(...midis));
+    for (let i = 1; i < tops.length; i++) expect(Math.abs(tops[i]! - tops[i - 1]!)).toBeLessThanOrEqual(7);
+  });
+  it("swing drums mark the form top and ghost-comp on bar 2", () => {
+    const flat = flatOf("Cmaj7 | Cmaj7 |");
+    const grid = drumGrid(flat, "swing");
+    expect(grid.some((e) => e.drum === "crash" && e.timeBeats === 0)).toBe(true);
+    expect(grid.some((e) => e.drum === "snare" && Math.abs(e.timeBeats - (4 + 2 + 2 / 3)) < 1e-6)).toBe(true);
+  });
+  it("swing fill bar plays a turnaround instead of ghosts", () => {
+    const flat = flatOf("Cmaj7 | Cmaj7 | Cmaj7 | Cmaj7 |");
+    const grid = drumGrid(flat, "swing");
+    const fillSnares = grid.filter((e) => e.drum === "snare" && e.timeBeats >= 12 && e.timeBeats < 16);
+    expect(fillSnares.length).toBeGreaterThanOrEqual(3);
+  });
+});

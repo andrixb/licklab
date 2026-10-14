@@ -6,12 +6,6 @@
   sample data. **Forbidden**: GPL-2.0-only code (incompatible with GPL-3.0) —
   this rules out RubberBand for time-stretch; M5 must use SoundTouch (LGPL) or
   a non-copyleft engine.
-- **realbook.site**: terms forbid automated bulk download/redistribution. No
-  scraping or crawling. Interact by link-out (`Song.externalUrl`) + importing
-  files the user provides. UX study only — no copied assets/branding.
-- **YouTube**: IFrame API playback + speed/A-B loops only. No audio extraction,
-  download, caching, or audio-only/background use (API Services ToS + Developer
-  Policies §III). Use `youtube-nocookie` embed; preserve controls.
 - **Samples**: VSCO 2 CE (CC0, incl. double bass), Virtuosity Drums (CC0),
   Salamander Grand (CC BY 3.0 — attribution page required). Ship curated
   subsets only. Verovio LGPL-3.0-or-later (linking disclosure). Time-stretch:

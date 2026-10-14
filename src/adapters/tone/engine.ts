@@ -41,22 +41,55 @@ export function createToneEngine(): AudioEngine {
         const [bass, piano, drums, lick] = await Promise.all([getBassSampler(), getPianoSampler(), getDrumSampler(), getLickSampler()]);
         voices = { bass, piano, drums, lick };
 
-        // Route every voice to the speakers: a Sampler's output is an
-        // UNCONNECTED gain node until toDestination() is called, so without
-        // these four lines the transport runs, the notes fire, the UI says
-        // "playing" — and nothing is audible. (This is exactly the M3 synth
-        // engine's toDestination wiring, kept when M3.5 swapped synths for
-        // Samplers.)
-        bass.toDestination();
-        piano.toDestination();
-        drums.toDestination();
-        lick.toDestination();
+        // Jazz mix: comping sits under the soloist, upright forward, ride
+        // present but not harsh. Velocities (schedule.ts) do per-hit work;
+        // these are static voice balances.
+        bass.volume.value = -8;
+        piano.volume.value = -11;
+        drums.volume.value = -10;
+        lick.volume.value = -3;
 
-        // Set default volumes
-        bass.volume.value = -6;
-        piano.volume.value = -6;
-        drums.volume.value = -8;
-        lick.volume.value = -2;
+        // Room + glue, built from Tone's own effects (no new deps, still lazy).
+        // Mocked Tone in unit tests only provides Sampler/start/Transport, so
+        // every step is guarded — production gets the bus, tests keep the old
+        // direct wiring.
+        try {
+          interface FxNode {
+            connect(n: unknown): unknown;
+            toDestination(): unknown;
+          }
+          interface VerbNode extends FxNode {
+            wet: { value: number };
+          }
+          interface ToneFx {
+            Compressor?: new (opts: unknown) => FxNode;
+            Freeverb?: new (opts: unknown) => VerbNode;
+          }
+          const TAny = T as unknown as ToneFx;
+          const Comp = TAny.Compressor;
+          const Verb = TAny.Freeverb;
+          const canBus = typeof Comp === "function" && typeof Verb === "function" && [bass, piano, drums, lick].every((s) => typeof (s as unknown as { connect?: unknown }).connect === "function");
+          if (canBus) {
+            const master = new Comp({ threshold: -18, ratio: 3, attack: 0.01, release: 0.2 });
+            const verb = new Verb({ roomSize: 0.65, dampening: 2500 });
+            if (verb.wet) verb.wet.value = 1;
+            for (const s of [bass, piano, drums, lick] as unknown as { connect: (n: unknown) => unknown }[]) {
+              s.connect(master);
+              s.connect(verb);
+            }
+            (verb as unknown as { connect: (n: unknown) => unknown }).connect(master);
+            (master as unknown as { toDestination: () => unknown }).toDestination();
+          } else {
+            throw new Error("fx bus unavailable, direct wiring");
+          }
+        } catch {
+          // Direct wiring fallback (unit-test mock + any effect failure).
+          // A Sampler is silent until connected, so this must never be skipped.
+          bass.toDestination();
+          piano.toDestination();
+          drums.toDestination();
+          lick.toDestination();
+        }
         loadError = null;
         // Diagnostics only: expose the live graph in dev so audio probes (and
         // the Playwright e2e harness) can tap Tone's destination with an
