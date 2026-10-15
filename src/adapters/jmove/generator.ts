@@ -11,9 +11,10 @@ import type { BandEvent, BandPart, BandStyle, Voice, DrumRole } from "../../doma
 import type { FlatChord } from "../../domain/progression.js";
 import type { ChordEvent, BassNote, CompNote, DrumHit, PracticeStyle } from "@jmove/generator";
 import {
-  generateWalkingBass,
-  generatePianoComping,
-  generateDrumPattern,
+  generateEnsemble,
+  resolveBassGranular,
+  resolveDrumGranular,
+  resolvePianoGranular,
   GM_DRUMS,
 } from "@jmove/generator";
 import { parseChordSymbol } from "../../domain/chords.js";
@@ -150,56 +151,53 @@ function drumHitsToEvents(hits: DrumHit[], tempoBpm: number): BandEvent[] {
 export function createJmoveBandProvider(): BandPatternProvider {
   return {
     name: "jmove-generator",
-    
+
     async generateBand(
       flat: readonly FlatChord[],
       style: BandStyle,
       part: BandPart,
       tempoBpm: number,
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      _opts?: BandGenerateOptions,
+      opts?: BandGenerateOptions,
     ): Promise<readonly BandEvent[]> {
       const chordEvents = toChordEvents(flat, tempoBpm);
       const jmoveStyle = toJmoveStyle(style);
       const totalBeats = flat.reduce((n, c) => n + c.beats, 0);
-      const measures = Math.ceil(totalBeats / 4); // Assume 4/4 time
-      
+      const measures = Math.max(1, Math.ceil(totalBeats / 4)); // Assume 4/4 time
+      const measureDuration = (4 * 60) / tempoBpm;
+
+      // Coordinated ensemble (same call the demo's Jam Session UI makes):
+      // drums inform bass timing, bass register guides piano voicings.
+      // All Feel/Musicality/Complexity sliders map to ensemble parameters so
+      // every control alters the generated take (seeded when a seed is given).
+      const result = generateEnsemble({
+        chordEvents,
+        style: jmoveStyle,
+        tempo: tempoBpm,
+        timeSignature: [4, 4],
+        measures,
+        measureInfo: { totalMeasures: measures, measureDuration },
+        instrumentStyles: { bass: jmoveStyle, piano: jmoveStyle, drums: jmoveStyle },
+        ...(opts?.seed !== undefined ? { seed: opts.seed } : {}),
+        ...(opts?.density !== undefined ? { density: opts.density } : {}),
+        ...(opts?.swingAmount !== undefined ? { swingAmount: opts.swingAmount } : {}),
+        ...(opts?.strumMs !== undefined ? { strumMs: opts.strumMs } : {}),
+        ...(opts?.creativity !== undefined ? { creativity: opts.creativity } : {}),
+        ...(opts?.conversation !== undefined ? { conversation: opts.conversation } : {}),
+        ...(opts?.airGaps !== undefined ? { airGaps: opts.airGaps } : {}),
+        ...(opts?.harmonicFreedom !== undefined ? { harmonicFreedom: opts.harmonicFreedom } : {}),
+        ...(opts?.drumComplexity !== undefined ? { drumGranular: resolveDrumGranular(opts.drumComplexity) } : {}),
+        ...(opts?.pianoComplexity !== undefined ? { pianoGranular: resolvePianoGranular(opts.pianoComplexity) } : {}),
+        ...(opts?.bassComplexity !== undefined ? { bassGranular: resolveBassGranular(opts.bassComplexity) } : {}),
+      });
+
       const events: BandEvent[] = [];
-      
-      // Generate bass if enabled
-      if (part.bass) {
-        const bassNotes = generateWalkingBass(chordEvents, {
-          style: jmoveStyle,
-          tempo: tempoBpm,
-          humanize: true,
-        });
-        events.push(...bassNotesToEvents(bassNotes, tempoBpm));
-      }
-      
-      // Generate piano if enabled
-      if (part.piano) {
-        const compNotes = generatePianoComping(chordEvents, {
-          style: jmoveStyle,
-          tempo: tempoBpm,
-          humanize: true,
-        });
-        events.push(...compNotesToEvents(compNotes, tempoBpm));
-      }
-      
-      // Generate drums if enabled
-      if (part.drums) {
-        const drumHits = generateDrumPattern({
-          style: jmoveStyle,
-          tempo: tempoBpm,
-          measures,
-          humanize: true,
-        });
-        events.push(...drumHitsToEvents(drumHits, tempoBpm));
-      }
-      
+      if (part.bass) events.push(...bassNotesToEvents(result.bass, tempoBpm));
+      if (part.piano) events.push(...compNotesToEvents(result.piano, tempoBpm));
+      if (part.drums) events.push(...drumHitsToEvents(result.drums, tempoBpm));
+
       // Sort by time
       events.sort((a, b) => a.timeBeats - b.timeBeats);
-      
+
       return events;
     },
   };

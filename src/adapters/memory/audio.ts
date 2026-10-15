@@ -5,7 +5,7 @@
 // adapters/memory/audio: silent AudioEngine fake (port contract tests, e2e
 // and environments without Web Audio). Records playback instead of sounding.
 
-import type { AudioEngine, BandPlayback, PianoVoice, BassVariant, PianoVariant, DrumVariant } from "../../application/ports.js";
+import type { AudioEngine, BandLevels, BandPlayback, PianoVoice, BassVariant, PianoVariant, DrumVariant } from "../../application/ports.js";
 import type { TimedEvent } from "../../domain/band.js";
 
 export interface FakeAudioEngine extends AudioEngine {
@@ -43,6 +43,9 @@ export function createFakeAudioEngine(): FakeAudioEngine {
     },
     async setDrumVariant(variant: DrumVariant): Promise<void> {
       engine.drumVariant = variant;
+    },
+    setLevels(levels: BandLevels): void {
+      void levels;
     },
     getPositionSeconds(): number {
       return 0;

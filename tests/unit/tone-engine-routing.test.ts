@@ -18,7 +18,7 @@ class MockSampler {
   static instances: MockSampler[] = [];
   readonly urls: Record<string, string>;
   readonly baseUrl: string;
-  readonly triggered: { note: number; duration: number; time: number; velocity: number }[] = [];
+  readonly triggered: { note: string | number; duration: number; time: number; velocity: number }[] = [];
   readonly loaded = true;
   readonly volume = { value: 0 };
   connected = false;
@@ -33,9 +33,10 @@ class MockSampler {
     this.connected = true;
     return this;
   }
-  triggerAttackRelease(note: number, duration: number, time: number, velocity: number): void {
+  triggerAttackRelease(note: string | number, duration: number, time: number, velocity: number): void {
     this.triggered.push({ note, duration, time, velocity });
   }
+  releaseAll(): void {}
   dispose(): void {}
 }
 
@@ -67,6 +68,21 @@ vi.mock("tone", () => ({
   Sampler: MockSampler,
   start: async (): Promise<void> => undefined,
   getTransport: () => transport,
+  Frequency: class {
+    midi: number;
+    units: string | undefined;
+    constructor(midi: number, units?: string) {
+      this.midi = midi;
+      this.units = units;
+    }
+    toNote(): string {
+      // Minimal MIDI->note (sharps) matching Tone's output for the test range.
+      const names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+      const m = this.midi;
+      const name = names[((m % 12) + 12) % 12] as string;
+      return `${name}${Math.floor(m / 12) - 1}`;
+    }
+  },
 }));
 
 const timed = (voice: "bass" | "drums" | "piano" | "lick", midi: number, atBeatSeconds: number) => ({
@@ -110,16 +126,18 @@ describe("tone engine routing", () => {
     await playback.finished;
     const triggered = MockSampler.instances.filter((s) => s.triggered.length > 0);
     expect(triggered).toHaveLength(4);
-    const landed = new Map<number, number[]>();
+    // MIDI numbers are converted to Tone note names (Frequency(midi).toNote):
+    // raw numbers would sound ~2 octaves low (60Hz = B1, not C4).
+    const landed = new Map<string | number, number[]>();
     for (const s of triggered) {
       expect(s.triggered).toHaveLength(1);
       const t = s.triggered[0]!;
       landed.set(t.note, [...(landed.get(t.note) ?? []), t.time]);
     }
-    expect(landed.get(40)).toEqual([0.5]);
-    expect(landed.get(36)).toEqual([1.0]);
-    expect(landed.get(60)).toEqual([1.5]);
-    expect(landed.get(64)).toEqual([2.0]);
+    expect(landed.get("E2")).toEqual([0.5]); // 40
+    expect(landed.get("C2")).toEqual([1.0]); // 36
+    expect(landed.get("C4")).toEqual([1.5]); // 60
+    expect(landed.get("E4")).toEqual([2.0]); // 64
   });
 
   it("drives the transport through a real start", async () => {

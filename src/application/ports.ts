@@ -92,6 +92,9 @@ export interface AudioEngine {
   setPianoVariant(variant: PianoVariant): Promise<void>;
   /** Select the drum kit variant (default "jazz"). */
   setDrumVariant(variant: DrumVariant): Promise<void>;
+  /** Live mixer levels (0..1.5 per voice); applies to the running playback
+   *  like the demo's setPartVolume, and to the next take via play opts. */
+  setLevels(levels: BandLevels): void;
   /** Report missing/failed samples so the UI can say so instead of silent play. */
   readonly lastError: string | null;
 }

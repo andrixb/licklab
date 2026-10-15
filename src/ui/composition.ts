@@ -29,6 +29,9 @@ export interface WorkspacePlayOpts {
   readonly countInBeats?: number;
   readonly band?: BandGenerateOptions;
   readonly pianoVoice?: PianoVoice;
+  readonly bassVariant?: BassVariant;
+  readonly pianoVariant?: PianoVariant;
+  readonly drumVariant?: DrumVariant;
 }
 
 export interface PlaybackInfo {
@@ -334,7 +337,7 @@ export function noteAppUpdateReady(): void {
 
 async function runPlayback(
   make: (engine: AudioEngine) => Promise<{ playback: BandPlayback | null; info: PlaybackInfo | null }>,
-  pianoVoice?: PianoVoice,
+  playOpts?: WorkspacePlayOpts,
 ): Promise<boolean> {
   currentPlayback?.stop();
   let engine: AudioEngine;
@@ -345,19 +348,46 @@ async function runPlayback(
     for (const l of playListeners) l();
     return false;
   }
+  console.log('[runPlayback] playOpts:', JSON.stringify(playOpts));
+  // Apply voice variants BEFORE unlocking so the engine loads the correct samples
+  if (playOpts?.pianoVoice) {
+    try {
+      await engine.setPianoVoice(playOpts.pianoVoice);
+    } catch {
+      /* older engines ignore voice selection */
+    }
+  }
+  // Apply voice variants before unlocking so the correct samples are loaded
+  if (playOpts?.bassVariant) {
+    console.log('[runPlayback] Setting bassVariant:', playOpts.bassVariant);
+    try {
+      await engine.setBassVariant(playOpts.bassVariant);
+    } catch {
+      /* older engines ignore variant selection */
+    }
+  }
+  if (playOpts?.pianoVariant) {
+    console.log('[runPlayback] Setting pianoVariant:', playOpts.pianoVariant);
+    try {
+      await engine.setPianoVariant(playOpts.pianoVariant);
+    } catch {
+      /* older engines ignore variant selection */
+    }
+  }
+  if (playOpts?.drumVariant) {
+    console.log('[runPlayback] Setting drumVariant:', playOpts.drumVariant);
+    try {
+      await engine.setDrumVariant(playOpts.drumVariant);
+    } catch {
+      /* older engines ignore variant selection */
+    }
+  }
   // Pre-load the samples so a failure is visible immediately rather than the UI
   // claiming play while nothing sounds. The engine records the reason.
   try {
     await engine.unlock();
   } catch {
     return false;
-  }
-  if (pianoVoice) {
-    try {
-      engine.setPianoVoice(pianoVoice);
-    } catch {
-      /* older engines ignore voice selection */
-    }
   }
   const resolved = await make(engine);
   if (!resolved.playback) return false;
@@ -389,7 +419,7 @@ export const workspace = {
       const base = basePlayOptions(style, parts, playOpts);
       const { result: playback, engineLabel } = await withProvider(style, (p) => playChorus(e, bars, { ...base, provider: p }));
       return { playback, info: infoFor(bars, parts.tempoBpm, countIn, engineLabel) };
-    }, playOpts?.pianoVoice),
+    }, playOpts),
   auditionLick: (input: string, lick: Lick, style: BandStyle, parts: BandPart, playOpts?: WorkspacePlayOpts) =>
     runPlayback(async (e) => {
       const p = draftProgression(input);
@@ -399,7 +429,7 @@ export const workspace = {
         auditionLick(e, p.bars, findSegmentsFor(p), lick, { ...base, provider }),
       );
       return { playback, info: playback ? infoFor(p.bars, parts.tempoBpm, countIn, engineLabel) : null };
-    }, playOpts?.pianoVoice),
+    }, playOpts),
   playSoloChorus: (
     input: string,
     placements: readonly { lick: Lick; segmentIndex: number }[],
@@ -415,9 +445,7 @@ export const workspace = {
         playSoloChorus(e, p.bars, findSegmentsFor(p), placements, { ...base, provider }),
       );
       return { playback, info: infoFor(p.bars, parts.tempoBpm, countIn, engineLabel) };
-    },
-    playOpts?.pianoVoice,
-  ),
+    }, playOpts),
   playTwelveKeys: (lick: Lick, style: BandStyle, parts: BandPart, playOpts?: WorkspacePlayOpts) =>
     runPlayback(async (e) => {
       const base = basePlayOptions(style, parts, playOpts);
@@ -430,7 +458,7 @@ export const workspace = {
           ? { totalSeconds: ((totalBeats + 4) * 60) / parts.tempoBpm, countInBeats: 0, totalBeats, tempoBpm: parts.tempoBpm, engineLabel }
           : null,
       };
-    }, playOpts?.pianoVoice),
+    }, playOpts),
   stop(): void {
     currentPlayback?.stop();
     currentPlayback = null;
@@ -468,6 +496,13 @@ export const workspace = {
   },
   async setDrumVariant(variant: DrumVariant): Promise<void> {
     if (engine) await engine.setDrumVariant(variant);
+  },
+  setLevels(levels: BandLevels): void {
+    try {
+      engine?.setLevels(levels);
+    } catch {
+      /* engine not loaded yet; levels apply on next Play via playOpts */
+    }
   },
 };
 

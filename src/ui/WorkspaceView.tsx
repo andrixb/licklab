@@ -176,6 +176,12 @@ export function WorkspaceView({ seed }: { seed?: WorkspaceSeed | undefined }): R
     void workspace.setDrumVariant(drumVariant);
   }, [drumVariant]);
 
+  // Live mixer (like the demo's setPartVolume): moving a level slider while
+  // playing alters the running audio, not just the next take.
+  React.useEffect(() => {
+    workspace.setLevels({ bass: levels.bass / 100, piano: levels.piano / 100, drums: levels.drums / 100 });
+  }, [levels]);
+
   const bandPart = { ...parts, tempoBpm: tempo };
   const setF = (key: keyof FeelState) => (v: number) => setFeel((f) => ({ ...f, [key]: v }));
   const setLevel = (key: keyof typeof levels) => (v: number) => setLevels((l) => ({ ...l, [key]: v }));
@@ -185,6 +191,9 @@ export function WorkspaceView({ seed }: { seed?: WorkspaceSeed | undefined }): R
     loop,
     countInBeats: countIn,
     pianoVoice: pianoVariant === "dx7" ? "dx7" : "upright",
+    bassVariant,
+    pianoVariant,
+    drumVariant,
     band: {
       ...(takeSeed !== null ? { seed: takeSeed } : {}),
       density: feel.density,

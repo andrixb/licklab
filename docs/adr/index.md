@@ -23,3 +23,4 @@
 | [ADR-019](adr-019-band-musicality.md) | Band musicality: sections, voice-leading, jazz mix (clean-room) | Accepted |
 | [ADR-020](adr-020-login-gated-writes.md) | Login-gated writes, open reads, same-origin CUD | Accepted |
 | [ADR-021](adr-021-jmove-integration.md) | jmove pattern source + control room (no port, no clone) | Accepted |
+| [ADR-022](adr-022-jmove-parity.md) | Match demo: ensemble, MIDI->note, direct wiring, live mixer | Accepted |

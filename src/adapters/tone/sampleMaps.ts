@@ -158,17 +158,18 @@ export const CASIO_RZ1_DRUM_SAMPLE_MAP = {
 
 export function sampleMapFor(voice: SampleVoice, variant?: string): Record<string, string> {
   if (voice === "bass") {
-    if (variant === "acoustic") return { ...ACOUSTIC_BASS_SAMPLE_MAP };
-    // "upright" (default) or "electric" fall back to VSCO upright for now
+    if (variant === "acoustic" || variant === "electric") return { ...ACOUSTIC_BASS_SAMPLE_MAP };
+    // "upright" (default) uses the VSCO pizzicato pack
     return { ...BASS_SAMPLE_MAP };
   }
   if (voice === "drums") {
     if (variant === "machine") return { ...CASIO_RZ1_DRUM_SAMPLE_MAP };
     return { ...DRUM_SAMPLE_MAP };
   }
-  // Piano variants
+  // Piano variants: DX7 is the FluidR3 electric_piano_2 soundfont (same source
+  // the demo's DX7 uses), not a separate FM synth.
   if (voice === "piano" || voice === "lick") {
-    if (variant === "electric_piano") return { ...ELECTRIC_PIANO_SAMPLE_MAP };
+    if (variant === "electric_piano" || variant === "dx7") return { ...ELECTRIC_PIANO_SAMPLE_MAP };
     if (variant === "grand_piano") return { ...GRAND_PIANO_SAMPLE_MAP };
     return { ...PIANO_SAMPLE_MAP };
   }
@@ -189,17 +190,20 @@ export interface SamplerUrls {
 export function samplerUrlsFor(voice: SampleVoice, variant?: string): SamplerUrls {
   const map = sampleMapFor(voice, variant);
   const urls: Record<string, string> = {};
-  const isFluidR3 = variant === "electric_piano" || variant === "acoustic" || variant === "grand_piano";
+  const isFluidR3 = variant === "electric_piano" || variant === "dx7" || variant === "acoustic" || variant === "electric" || variant === "grand_piano";
   const isMachine = variant === "machine";
-  // All our samples are now WAV (converted from OGG/Ogg)
-  const ext = ".wav";
+  // Casio RZ-1 pack ships as .ogg (same files the demo loads); everything
+  // else in the pack is .wav. Requesting the wrong extension 404s, and the
+  // SPA fallback would answer index.html (200 text/html) which fails to
+  // decode — so the extension must match the files on disk.
+  const ext = isMachine ? ".ogg" : ".wav";
   for (const [note, filename] of Object.entries(map)) urls[note] = `${filename}${ext}`;
   
   // Determine subdirectory based on variant
   let subdir = SAMPLE_SUBDIR[voice];
   if (isFluidR3) {
-    if (variant === "electric_piano") subdir = "fluidr3/electric_piano_2";
-    else if (variant === "acoustic") subdir = "fluidr3/acoustic_bass";
+    if (variant === "electric_piano" || variant === "dx7") subdir = "fluidr3/electric_piano_2";
+    else if (variant === "acoustic" || variant === "electric") subdir = "fluidr3/acoustic_bass";
     else if (variant === "grand_piano") subdir = "fluidr3/acoustic_grand_piano";
   } else if (isMachine) {
     subdir = "casio-rz1";
