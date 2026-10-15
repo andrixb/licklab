@@ -6,20 +6,24 @@
 // Composition root: wires concrete adapters to application use cases and hands
 // components plain use-case closures. Everything else in ui/ imports this
 // module (or application/domain) — never adapters directly.
+//
+// Chunking: this module is imported by the initial app shell, so it must not
+// statically import anything heavy. Dexie, Verovio, the use cases, the local
+// band engine and all domain chord/progression code load DYNAMICALLY inside
+// the (already async) use-case closures below — the initial payload stays
+// inside the budget check (docs/deployment.md, ADR-023). Static imports here
+// are types only (erased at build) plus tiny pure helpers.
 
-import { DexieLickRepository, LickLabDb } from "../adapters/dexie/licks.js";
-import { VerovioRenderer } from "../adapters/notation/verovio.js";
-import { deleteLick, listLicks, saveLick, type SaveLickInput } from "../application/licks.js";
-import { createLickFromAbc, type AbcLickInput } from "../application/lickInput.js";
-import { findLicksForProgression } from "../application/matching.js";
-import { auditionLick, playChorus, playSoloChorus, playTwelveKeys, type PlayOptions } from "../application/playback.js";
-import { SEED_LICKS } from "../application/seeds.js";
+import type { DexieLickRepository, LickLabDb } from "../adapters/dexie/licks.js";
+import type { VerovioRenderer } from "../adapters/notation/verovio.js";
+import type { SaveLickInput } from "../application/licks.js";
+import type { AbcLickInput } from "../application/lickInput.js";
+import type { PlayOptions } from "../application/playback.js";
 import type { AudioEngine, BandGenerateOptions, BandLevels, BandPlayback, BandPatternProvider, LickFilter, PianoVoice, BassVariant, PianoVariant, DrumVariant } from "../application/ports.js";
-import { createLocalBandProvider } from "../adapters/local/band.js";
 import type { Lick } from "../domain/lick.js";
 import type { BandPart, BandStyle } from "../domain/band.js";
 import type { CatalogLick } from "../domain/matching.js";
-import { analyzeProgression, flattenProgression, parseProgressionInput, PRESETS, type Progression, type ProgressionBar } from "../domain/progression.js";
+import type { Progression, ProgressionBar } from "../domain/progression.js";
 
 /** Extra playback controls from the workspace control room (all optional). */
 export interface WorkspacePlayOpts {
@@ -57,21 +61,39 @@ interface DbHandle {
   repo: DexieLickRepository;
 }
 
-function openNamespace(namespace: string): DbHandle {
-  const db = new LickLabDb(namespace);
-  return { db, repo: new DexieLickRepository(db) };
+/** Lazily opened Dexie namespace (dynamic import: Dexie stays out of the initial chunk). */
+async function openNamespace(namespace: string): Promise<DbHandle> {
+  const mod = await import("../adapters/dexie/licks.js");
+  const db = new mod.LickLabDb(namespace);
+  return { db, repo: new mod.DexieLickRepository(db) };
 }
 
 const clock = { nowIso: (): string => new Date().toISOString() };
 const ids = { next: (): string => crypto.randomUUID() };
-const renderer = new VerovioRenderer();
 
-let current = openNamespace(LOCAL_OWNER);
+let rendererPromise: Promise<VerovioRenderer> | null = null;
+/** Lazily created notation renderer (Verovio WASM still loads on first render). */
+function getRenderer(): Promise<VerovioRenderer> {
+  if (!rendererPromise) {
+    rendererPromise = import("../adapters/notation/verovio.js").then((m) => new m.VerovioRenderer());
+  }
+  return rendererPromise;
+}
+
+/** Lazily opened repo handle for the current namespace (memoized per switch). */
+let currentPromise: Promise<DbHandle> | null = null;
+function currentRepos(): Promise<DbHandle> {
+  if (!currentPromise) currentPromise = openNamespace(LOCAL_OWNER);
+  return currentPromise;
+}
+
+const ownerOf = (user: SessionUser | null): string => user?.id ?? LOCAL_OWNER;
+
 let currentUser: SessionUser | null = null;
 
 /** Move all signed-out local data into the user's namespace (first sign-in). */
 async function attachLocalData(userId: string): Promise<void> {
-  const local = openNamespace(LOCAL_OWNER);
+  const [local, current] = await Promise.all([openNamespace(LOCAL_OWNER), currentRepos()]);
   const rows = await local.repo.list(LOCAL_OWNER, { includeDeleted: true });
   if (rows.length === 0) return;
   for (const lick of rows) {
@@ -86,11 +108,11 @@ async function attachLocalData(userId: string): Promise<void> {
  */
 export async function bindUser(user: SessionUser | null): Promise<void> {
   if (user && currentUser?.id !== user.id) {
-    current = openNamespace(user.id);
+    currentPromise = openNamespace(user.id);
     await attachLocalData(user.id);
   }
   if (!user && currentUser) {
-    current = openNamespace(LOCAL_OWNER);
+    currentPromise = openNamespace(LOCAL_OWNER);
   }
   currentUser = user;
   notifyAuth();
@@ -155,7 +177,8 @@ export const auth = {
 
 /** Full backup of the current library (all licks incl. tombstones). */
 export async function exportLibrary(): Promise<void> {
-  const licks = await current.repo.list(currentUser?.id ?? LOCAL_OWNER, { includeDeleted: true });
+  const current = await currentRepos();
+  const licks = await current.repo.list(ownerOf(currentUser), { includeDeleted: true });
   downloadJson("licklab-library-export.json", { schemaVersion: 1, exportedAt: clock.nowIso(), licks });
 }
 
@@ -170,14 +193,37 @@ function downloadJson(filename: string, data: unknown): void {
 }
 
 export const lickLab = {
-  listLicks: (filter?: LickFilter): Promise<Lick[]> => listLicks({ repo: current.repo }, currentUser?.id ?? LOCAL_OWNER, filter),
-  getLick: (id: string) => current.repo.get(id, currentUser?.id ?? LOCAL_OWNER),
-  createLick: (input: SaveLickInput): Promise<Lick> => saveLick({ repo: current.repo, clock, ids }, currentUser?.id ?? LOCAL_OWNER, input),
-  createLickFromAbc: (input: AbcLickInput): Promise<Lick> => createLickFromAbc({ repo: current.repo, clock, ids }, currentUser?.id ?? LOCAL_OWNER, input),
-  removeLick: (id: string): Promise<void> => deleteLick({ repo: current.repo, clock }, currentUser?.id ?? LOCAL_OWNER, id),
-  renderNotation: (abc: string, opts?: { title?: string }): Promise<string> => renderer.renderAbcToSvg(abc, opts),
+  listLicks: async (filter?: LickFilter): Promise<Lick[]> => {
+    const [{ listLicks }, current] = await Promise.all([import("../application/licks.js"), currentRepos()]);
+    return listLicks({ repo: current.repo }, ownerOf(currentUser), filter);
+  },
+  getLick: async (id: string): Promise<Lick | null> => {
+    const current = await currentRepos();
+    return current.repo.get(id, ownerOf(currentUser));
+  },
+  createLick: async (input: SaveLickInput): Promise<Lick> => {
+    const [{ saveLick }, current] = await Promise.all([import("../application/licks.js"), currentRepos()]);
+    return saveLick({ repo: current.repo, clock, ids }, ownerOf(currentUser), input);
+  },
+  createLickFromAbc: async (input: AbcLickInput): Promise<Lick> => {
+    const [{ createLickFromAbc }, current] = await Promise.all([import("../application/lickInput.js"), currentRepos()]);
+    return createLickFromAbc({ repo: current.repo, clock, ids }, ownerOf(currentUser), input);
+  },
+  removeLick: async (id: string): Promise<void> => {
+    const [{ deleteLick }, current] = await Promise.all([import("../application/licks.js"), currentRepos()]);
+    return deleteLick({ repo: current.repo, clock }, ownerOf(currentUser), id);
+  },
+  renderNotation: async (abc: string, opts?: { title?: string }): Promise<string> => {
+    const renderer = await getRenderer();
+    return renderer.renderAbcToSvg(abc, opts);
+  },
   ensureSeeded: async (): Promise<void> => {
-    const owner = currentUser?.id ?? LOCAL_OWNER;
+    const [{ saveLick }, { SEED_LICKS }, current] = await Promise.all([
+      import("../application/licks.js"),
+      import("../application/seeds.js"),
+      currentRepos(),
+    ]);
+    const owner = ownerOf(currentUser);
     // Example licks are upserted (not skipped when the library is non-empty):
     // stable ids make this idempotent AND self-correcting — an old copy saved
     // with pre-fix degrees is refreshed on next load.
@@ -206,14 +252,15 @@ async function catalogLicks(): Promise<CatalogLick[]> {
   return [...own.map((lick) => ({ lick, likes: 0 })), ...starter];
 }
 
-function draftProgression(input: string): Progression {
+async function draftProgression(input: string): Promise<Progression> {
+  const { parseProgressionInput } = await import("../domain/progression.js");
   const now = clock.nowIso();
   return {
     id: "draft",
     title: "",
     key: "",
     bars: parseProgressionInput(input),
-    ownerId: currentUser?.id ?? LOCAL_OWNER,
+    ownerId: ownerOf(currentUser),
     createdAt: now,
     updatedAt: now,
     deletedAt: null,
@@ -270,30 +317,34 @@ let currentPlayback: BandPlayback | null = null;
 let lastInfo: PlaybackInfo | null = null;
 const playListeners = new Set<() => void>();
 
-/** Local domain engine (always available, offline). */
-const localProvider = createLocalBandProvider();
-
 /**
  * Pattern source per style: jmove (lazy, MIT) for swing/ballad/bossa, local
  * domain engine for straight. Any jmove failure (import, generation) falls
  * back to local so playback still starts — the info label says which won.
+ * The local provider is dynamically imported too: it pulls the domain band
+ * engine (and chord reading) which must stay out of the initial chunk.
  */
 async function withProvider<T>(
   style: BandStyle,
   run: (provider: BandPatternProvider) => Promise<T>,
 ): Promise<{ result: T; engineLabel: string }> {
-  if (style === "straight") return { result: await run(localProvider), engineLabel: "local" };
+  if (style === "straight") {
+    const { createLocalBandProvider } = await import("../adapters/local/band.js");
+    return { result: await run(createLocalBandProvider()), engineLabel: "local" };
+  }
   try {
     const mod = await import("../adapters/jmove/generator.js");
     const version = await mod.jmoveVersion().catch(() => "?");
     const out = await run(mod.createJmoveBandProvider());
     return { result: out, engineLabel: `jmove ${version}` };
   } catch {
-    return { result: await run(localProvider), engineLabel: "local" };
+    const { createLocalBandProvider } = await import("../adapters/local/band.js");
+    return { result: await run(createLocalBandProvider()), engineLabel: "local" };
   }
 }
 
-function infoFor(bars: readonly ProgressionBar[], tempoBpm: number, countInBeats: number, engineLabel: string): PlaybackInfo {
+async function infoFor(bars: readonly ProgressionBar[], tempoBpm: number, countInBeats: number, engineLabel: string): Promise<PlaybackInfo> {
+  const { flattenProgression } = await import("../domain/progression.js");
   const flat = flattenProgression(bars);
   const totalBeats = flat.reduce((n, c) => n + c.beats, 0);
   return { totalSeconds: ((totalBeats + countInBeats) * 60) / tempoBpm, countInBeats, totalBeats, tempoBpm, engineLabel };
@@ -402,33 +453,30 @@ async function runPlayback(
 }
 
 export const workspace = {
-  presets: PRESETS,
-  chordsOf: (presetId: string): string => {
-    const p = PRESETS.find((x) => x.id === presetId);
-    if (!p) throw new Error("unknown preset");
-    return p.bars.map((b) => b.chords.map((c) => c.symbol).join(" ")).join(" | ");
-  },
   matches: async (input: string) => {
-    const progression = draftProgression(input);
+    const [{ findLicksForProgression }] = await Promise.all([import("../application/matching.js")]);
+    const progression = await draftProgression(input);
     return { progression, result: findLicksForProgression(progression, await catalogLicks()) };
   },
   playChorus: (input: string, style: BandStyle, parts: BandPart, playOpts?: WorkspacePlayOpts) =>
     runPlayback(async (e) => {
-      const bars = draftProgression(input).bars;
+      const [{ playChorus }] = await Promise.all([import("../application/playback.js")]);
+      const bars = (await draftProgression(input)).bars;
       const countIn = playOpts?.countInBeats ?? 4;
       const base = basePlayOptions(style, parts, playOpts);
       const { result: playback, engineLabel } = await withProvider(style, (p) => playChorus(e, bars, { ...base, provider: p }));
-      return { playback, info: infoFor(bars, parts.tempoBpm, countIn, engineLabel) };
+      return { playback, info: await infoFor(bars, parts.tempoBpm, countIn, engineLabel) };
     }, playOpts),
   auditionLick: (input: string, lick: Lick, style: BandStyle, parts: BandPart, playOpts?: WorkspacePlayOpts) =>
     runPlayback(async (e) => {
-      const p = draftProgression(input);
+      const [{ auditionLick }] = await Promise.all([import("../application/playback.js")]);
+      const p = await draftProgression(input);
       const countIn = playOpts?.countInBeats ?? 4;
       const base = basePlayOptions(style, parts, playOpts);
-      const { result: playback, engineLabel } = await withProvider(style, (provider) =>
-        auditionLick(e, p.bars, findSegmentsFor(p), lick, { ...base, provider }),
+      const { result: playback, engineLabel } = await withProvider(style, async (provider) =>
+        auditionLick(e, p.bars, await findSegmentsFor(p), lick, { ...base, provider }),
       );
-      return { playback, info: playback ? infoFor(p.bars, parts.tempoBpm, countIn, engineLabel) : null };
+      return { playback, info: playback ? await infoFor(p.bars, parts.tempoBpm, countIn, engineLabel) : null };
     }, playOpts),
   playSoloChorus: (
     input: string,
@@ -438,16 +486,18 @@ export const workspace = {
     playOpts?: WorkspacePlayOpts,
   ) =>
     runPlayback(async (e) => {
-      const p = draftProgression(input);
+      const [{ playSoloChorus }] = await Promise.all([import("../application/playback.js")]);
+      const p = await draftProgression(input);
       const countIn = playOpts?.countInBeats ?? 4;
       const base = basePlayOptions(style, parts, playOpts);
-      const { result: playback, engineLabel } = await withProvider(style, (provider) =>
-        playSoloChorus(e, p.bars, findSegmentsFor(p), placements, { ...base, provider }),
+      const { result: playback, engineLabel } = await withProvider(style, async (provider) =>
+        playSoloChorus(e, p.bars, await findSegmentsFor(p), placements, { ...base, provider }),
       );
-      return { playback, info: infoFor(p.bars, parts.tempoBpm, countIn, engineLabel) };
+      return { playback, info: await infoFor(p.bars, parts.tempoBpm, countIn, engineLabel) };
     }, playOpts),
   playTwelveKeys: (lick: Lick, style: BandStyle, parts: BandPart, playOpts?: WorkspacePlayOpts) =>
     runPlayback(async (e) => {
+      const [{ playTwelveKeys }] = await Promise.all([import("../application/playback.js")]);
       const base = basePlayOptions(style, parts, playOpts);
       const { result: playback, engineLabel } = await withProvider(style, (provider) => playTwelveKeys(e, lick, { ...base, provider }));
       const ctxBeats = lick.harmonicContext.chords.reduce((n, c) => n + c.beats, 0);
@@ -506,7 +556,8 @@ export const workspace = {
   },
 };
 
-function findSegmentsFor(p: Progression) {
+async function findSegmentsFor(p: Progression) {
+  const { analyzeProgression } = await import("../domain/progression.js");
   return analyzeProgression(p);
 }
 

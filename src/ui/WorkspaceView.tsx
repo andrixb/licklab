@@ -10,6 +10,7 @@ import type { SegmentMatches } from "../application/matching.js";
 import type { BassVariant, PianoVariant, DrumVariant } from "../application/ports.js";
 import { navigate, shareUrlForChords } from "./router.js";
 import { workspace, type WorkspacePlayOpts } from "./composition.js";
+import { chordsOfPreset, presetList } from "../application/presetChords.js";
 import { btn, btnGhost, btnPrimary, card, errorText, input, label, tag } from "./primitives.js";
 
 export interface Placement {
@@ -104,7 +105,7 @@ function Slider({ name, value, min, max, step, unit, onChange }: {
 
 function seedChords(seed: WorkspaceSeed | undefined): string {
   try {
-    if (seed?.preset) return workspace.chordsOf(seed.preset);
+    if (seed?.preset) return chordsOfPreset(seed.preset);
     if (seed?.chords) return seed.chords;
   } catch {
     /* fall through to default */
@@ -229,14 +230,14 @@ export function WorkspaceView({ seed }: { seed?: WorkspaceSeed | undefined }): R
     <section aria-label="progression workspace" className="grid gap-5">
       <div className={`${card} p-[18px] grid gap-3`}>
         <div className="flex flex-wrap gap-2" role="group" aria-label="presets">
-          {workspace.presets.map((p) => (
+          {presetList().map((p) => (
             <button
               key={p.id}
               type="button"
               className={btnGhost}
               onClick={() => {
-                setInputText(workspace.chordsOf(p.id));
-                navigate({ view: "play", chords: workspace.chordsOf(p.id) });
+                setInputText(chordsOfPreset(p.id));
+                navigate({ view: "play", chords: chordsOfPreset(p.id) });
               }}
             >
               {p.title}

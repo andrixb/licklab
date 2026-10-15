@@ -6,13 +6,15 @@ import React from "react";
 import { auth, bindUser, lickLab } from "./composition.js";
 import { AttributionPage } from "./AttributionPage.js";
 import { ErrorBoundary } from "./ErrorBoundary.js";
-import { LibraryView } from "./LibraryView.js";
-import { LickDetailView } from "./LickDetailView.js";
-import { NewLickView } from "./NewLickView.js";
 import { parseRoute, navigate, type Route } from "./router.js";
 import { btnGhost, btnLink } from "./primitives.js";
 
 const AccountMenu = React.lazy(() => import("./AccountMenu.js"));
+// Library/detail/new views (and their Dexie/domain chord graph) load on
+// demand so the initial payload stays inside the budget (ADR-023).
+const LibraryView = React.lazy(() => import("./LibraryView.js").then((m) => ({ default: m.LibraryView })));
+const LickDetailView = React.lazy(() => import("./LickDetailView.js").then((m) => ({ default: m.LickDetailView })));
+const NewLickView = React.lazy(() => import("./NewLickView.js").then((m) => ({ default: m.NewLickView })));
 const WorkspaceView = React.lazy(() => import("./WorkspaceView.js").then((m) => ({ default: m.WorkspaceView })));
 
 function currentRoute(): Route {
@@ -65,10 +67,14 @@ export function App(): React.JSX.Element {
         <p className="py-5 italic text-dim">Loading your lick library…</p>
       ) : route.view === "detail" ? (
         <ErrorBoundary label="lick">
-          <LickDetailView id={route.id} onBack={() => go({ view: "library" })} />
+          <React.Suspense fallback={<p className="py-5 italic text-dim">Loading lick…</p>}>
+            <LickDetailView id={route.id} onBack={() => go({ view: "library" })} />
+          </React.Suspense>
         </ErrorBoundary>
       ) : route.view === "new" ? (
-        <NewLickView onSaved={(id) => go({ view: "detail", id })} onCancel={() => go({ view: "library" })} />
+        <React.Suspense fallback={<p className="py-5 italic text-dim">Loading editor…</p>}>
+          <NewLickView onSaved={(id) => go({ view: "detail", id })} onCancel={() => go({ view: "library" })} />
+        </React.Suspense>
       ) : route.view === "play" ? (
         <React.Suspense fallback={<p className="py-5 italic text-dim">Loading workspace…</p>}>
           <WorkspaceView key={`${route.preset ?? ""}|${route.chords ?? ""}`} seed={route} />
@@ -76,7 +82,9 @@ export function App(): React.JSX.Element {
       ) : route.view === "attribution" ? (
         <AttributionPage />
       ) : (
-        <LibraryView key={libraryKey} onOpen={(id) => go({ view: "detail", id })} onNew={() => go({ view: "new" })} />
+        <React.Suspense fallback={<p className="py-5 italic text-dim">Loading your lick library…</p>}>
+          <LibraryView key={libraryKey} onOpen={(id) => go({ view: "detail", id })} onNew={() => go({ view: "new" })} />
+        </React.Suspense>
       )}
       <footer className="mt-9 pt-3.5 border-t border-line text-dim text-sm">
         <p>

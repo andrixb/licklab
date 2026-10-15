@@ -18,7 +18,7 @@ import {
   GM_DRUMS,
 } from "@jmove/generator";
 import { parseChordSymbol } from "../../domain/chords.js";
-import { pitchName } from "../../domain/pitch.js";
+import { LETTERS, pitchClassOf, pitchName, type SpelledPitch } from "../../domain/pitch.js";
 
 /** Convert our BandStyle to JMove's PracticeStyle */
 function toJmoveStyle(style: BandStyle): PracticeStyle {
@@ -34,50 +34,64 @@ function toJmoveStyle(style: BandStyle): PracticeStyle {
   }
 }
 
-/** Convert our FlatChord[] to JMove's ChordEvent[] */
-function toChordEvents(flat: readonly FlatChord[], tempoBpm: number): ChordEvent[] {
+/** Convert our FlatChord[] to JMove's ChordEvent[] (thin pass-through).
+ *
+ * No musical logic lives here: the root boundary is lexical, the quality
+ * string comes from domain/chords.ts already in JMove-canonical form
+ * (extensions and alterations preserved verbatim — "Bb13" stays "13",
+ * "Bb7#9" stays "7#9", never simplified to "7"), and JMove itself
+ * interprets it. Slash bass is parsed by domain/chords.ts but NOT sent:
+ * ChordEvent has no bass field and JMove's normalize() strips "/X", so
+ * the bass follows the chord root — identical to JMove's own demo,
+ * which builds the same ChordEvent shape (see ADR-023).
+ *
+ * Exported pure (no Tone, no network) so parity tests can assert the
+ * exact ChordEvents LickLab hands JMove.
+ */
+export function toChordEvents(flat: readonly FlatChord[], tempoBpm: number): ChordEvent[] {
   const beatsPerSecond = tempoBpm / 60;
-  
+
   return flat.map((chord) => {
     const parsed = parseChordSymbol(chord.symbol);
-    const root = pitchName(parsed.root);
-    const quality = parsed.quality;
-    
-    // Convert our quality names to JMove's format
-    let jmoveQuality: string;
-    switch (quality) {
-      case "maj7":
-        jmoveQuality = "maj7";
-        break;
-      case "min7":
-        jmoveQuality = "m7";
-        break;
-      case "dom7":
-        jmoveQuality = "7";
-        break;
-      case "dim7":
-        jmoveQuality = "dim7";
-        break;
-      case "hdim7":
-        jmoveQuality = "m7b5";
-        break;
-      case "minmaj7":
-        jmoveQuality = "mMaj7";
-        break;
-      case "sus7":
-        jmoveQuality = "sus7";
-        break;
-      default:
-        jmoveQuality = quality;
-    }
-    
     return {
-      root,
-      quality: jmoveQuality,
+      root: jmoveRootName(parsed.root),
+      quality: parsed.jmoveQuality,
       time: chord.startBeat / beatsPerSecond,
       duration: chord.beats / beatsPerSecond,
     };
   });
+}
+
+/**
+ * Root spelling JMove's own reader handles (single b/# ASCII, uppercase
+ * letter — probed: lowercase, unicode ♭, and double accidentals misread
+ * as other pitches). Single-accidental spellings pass through untouched
+ * (F# stays F#: JMove reads sharps and flats identically). Double
+ * accidentals (bb/x) are respelled to the single-accidental enharmonic
+ * with the fewest accidentals (natural > flat > sharp, then letter
+ * order) — a mechanical transliteration into JMove's expected input,
+ * this adapter's only job. Deterministic; see ADR-023.
+ */
+export function jmoveRootName(root: SpelledPitch): string {
+  if (root.accidental === -1 || root.accidental === 0 || root.accidental === 1) {
+    return pitchName(root);
+  }
+  const pc = pitchClassOf(root);
+  const naturals: Record<string, number> = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+  const cands: { name: string; rank: number }[] = [];
+  for (const letter of LETTERS) {
+    const natural = naturals[letter] as number;
+    for (const acc of [0, -1, 1] as const) {
+      if ((((natural + acc) % 12) + 12) % 12 === pc) {
+        const name = `${letter}${acc === -1 ? "b" : acc === 1 ? "#" : ""}`;
+        cands.push({ name, rank: acc === 0 ? 0 : acc === -1 ? 1 : 2 });
+      }
+    }
+  }
+  cands.sort((a, b) => a.rank - b.rank || (a.name < b.name ? -1 : 1));
+  const best = cands[0];
+  if (!best) throw new Error(`unspellable root pitch class: ${pc}`);
+  return best.name;
 }
 
 /** Convert JMove's BassNote[] to our BandEvent[] */

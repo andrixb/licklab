@@ -38,3 +38,11 @@ Every query scoped by `owner_id`, index starts with `owner_id`.
 
 Budget (rows read/written per sync/day, heavy-use scenario) + restore-from-
 Time-Travel runbook land in M4. Sync-paused-on-limit state required in client.
+
+- ADR-023 — no D1/schema change: chord storage categories
+  (`ChordQuality`, signature codes, `lick.chord_quality`) are derived from
+  JMove's family+intervals but byte-stable for every previously-valid
+  symbol (covered by `chords.test.ts` "storage categories stay stable"),
+  so existing rows, caches and sync payloads keep matching. Newly accepted
+  notations (`G7alt`, slash, `M7`, `Δ`, `°`, iReal aliases, extensions)
+  classify into the same stable categories.

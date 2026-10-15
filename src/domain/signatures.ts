@@ -7,7 +7,7 @@
 // shapes in any key produce the same contextKey/functionKey, and matching
 // never looks at absolute pitch classes (property-tested).
 
-import { chordTones, parseChordSymbol, type ChordQuality } from "./chords.js";
+import { chordTonesFor, parseChordSymbol, type ChordQuality } from "./chords.js";
 import { pitchClassOf } from "./pitch.js";
 
 // Structural inputs (no import from lick.ts — lick.ts depends on signatures,
@@ -264,7 +264,7 @@ export function signaturesOf(chords: readonly ChordInput[]): LickSignatures {
 
 /** Chord-tone + common-tension semitones (mod 12) for plausibility checks. */
 export function acceptableTones(quality: ChordQuality): ReadonlySet<number> {
-  const tones = new Set<number>(chordTones({ root: { letter: "C", accidental: 0, octave: 4 }, quality, symbol: "" }).map((t) => t.semitones % 12));
+  const tones = new Set<number>(chordTonesFor(quality).map((t) => t.semitones % 12));
   if (quality !== "power5" && quality !== "aug") tones.add(2); // 9th
   if (quality === "min7" || quality === "dom7") tones.add(5); // 11th
   if (quality === "maj7" || quality === "min7" || quality === "dom7") tones.add(9); // 13th
